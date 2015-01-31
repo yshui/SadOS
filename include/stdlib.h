@@ -37,6 +37,8 @@ enum { SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2 };
 typedef int off_t;
 off_t lseek(int fildes, off_t offset, int whence);
 int close(int fd);
+int dup(int oldfd);
+int dup2(int oldfd, int newfd);
 
 // directories
 #define NAME_MAX 255
