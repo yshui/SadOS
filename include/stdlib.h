@@ -1,7 +1,7 @@
 #ifndef _STDLIB_H
 #define _STDLIB_H
 
-extern int errno;
+extern __thread int errno;
 
 int main(int argc, char* argv[], char* envp[]);
 void exit(int status);
@@ -18,7 +18,6 @@ pid_t fork(void);
 pid_t getpid(void);
 pid_t getppid(void);
 int execve(const char *filename, char *const argv[], char *const envp[]);
-int pipe(int filedes[2]);
 pid_t waitpid(pid_t pid, int *status, int options);
 unsigned int sleep(unsigned int seconds);
 unsigned int alarm(unsigned int seconds);
@@ -37,6 +36,7 @@ enum { SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2 };
 typedef int off_t;
 off_t lseek(int fildes, off_t offset, int whence);
 int close(int fd);
+int pipe(int filedes[2]);
 int dup(int oldfd);
 int dup2(int oldfd, int newfd);
 
@@ -50,19 +50,7 @@ struct dirent
 	char d_name [NAME_MAX+1];
 };
 void *opendir(const char *name);
-int readdir(unsigned int fd, struct dirent *dirp, unsigned int count);
+struct dirent *readdir(void *dir);
 int closedir(void *dir);
-
-// sockets
-int socket(int domain, int type, int protocol);
-struct sockaddr {
-	unsigned short sa_family;
-	char           sa_data[14];
-};
-typedef unsigned int socklen_t;
-int bind(int sockfd, const struct sockaddr *my_addr, socklen_t addrlen);
-int connect(int sockfd, const struct sockaddr *serv_addr, socklen_t addrlen);
-int listen(int sockfd, int backlog);
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 
 #endif
