@@ -1,25 +1,33 @@
 CC=gcc
 AS=as
-CFLAGS=-O1 -std=c99 -Wall -Werror -nostdinc -Iinclude -msoft-float -mno-sse -mno-red-zone -fno-builtin -fPIC -march=amdfam10 -g3
-LD=gcc
-LDLAGS=
+CFLAGS=-O1 -std=c99 -D__thread= -Wall -Werror -nostdinc -Iinclude -msoft-float -mno-sse -mno-red-zone -fno-builtin -fPIC -march=amdfam10 -g3
+LD=ld
+LDLAGS=-nostdlib
 AR=ar
 
 ROOTFS=rootfs
 ROOTBIN=$(ROOTFS)/bin
+ROOTLIB=$(ROOTFS)/lib
 
 BIN_SRCS:=$(wildcard bin/*/*.c)
+LIBC_SRCS:=$(wildcard libc/*.c libc/*/*.c)
 BINS:=$(addprefix $(ROOTFS)/,$(wildcard bin/*))
 
 .PHONY: all binary
 
 all: $(BINS)
 
-$(BINS): $(shell find bin/ -type f -name *.c) $(wildcard include/*.h include/*/*.h)
+$(ROOTLIB)/libc.a: $(LIBC_SRCS:%.c=obj/%.o)
+	$(AR) rcs $@ $^
+
+$(ROOTLIB)/crt1.o: obj/crt/crt1.o
+	cp $^ $@
+
+$(BINS): $(ROOTLIB)/crt1.o $(ROOTLIB)/libc.a $(shell find bin/ -type f -name *.c) $(wildcard include/*.h include/*/*.h)
 	@$(MAKE) --no-print-directory BIN=$@ binary
 
 binary: $(patsubst %.c,obj/%.o,$(wildcard $(BIN:rootfs/%=%)/*.c))
-	$(LD) $(LDLAGS) -o $(BIN) $^
+	$(LD) $(LDLAGS) -o $(BIN) $(ROOTLIB)/crt1.o $^ $(ROOTLIB)/libc.a
 
 obj/%.o: %.c $(wildcard include/*.h include/*/*.h)
 	@mkdir -p $(dir $@)
@@ -37,5 +45,5 @@ submit: clean
 	cp -v $(USER).tgz.gpg $(SUBMITTO)$(USER)=`date +%F=%T`.tgz.gpg
 
 clean:
-	find $(ROOTBIN) -type f ! -name .empty -print -delete
+	find $(ROOTLIB) $(ROOTBIN) -type f ! -name .empty -print -delete
 	rm -rfv obj kernel newfs.506 $(ROOTBOOT)/kernel/kernel
