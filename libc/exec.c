@@ -1,16 +1,9 @@
-#pragma once
 #include <stdlib.h>
-
-#include "string.h"
-#include "errno.h"
+#include <string.h>
+#include <errno.h>
 #include "util.h"
-#include "env.h"
 
-#define STDIN_FILENO 0
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2
-
-static inline int execvp(const char *name, char * const* argv) {
+int execvp(const char *name, char * const* argv) {
 	char *env_path = strdup(getenv("PATH"));
 	int npath, paths = 0;
 	char **path = NULL;
@@ -28,7 +21,7 @@ static inline int execvp(const char *name, char * const* argv) {
 		strcat(buf, argv[0]);
 		printf("Trying: %s\n", buf);
 
-		execve(buf, argv, my_environ);
+		execve(buf, argv, environ);
 		if (errno != ENOENT || tmp_errno == 0)
 			tmp_errno = errno;
 	}
@@ -38,5 +31,5 @@ static inline int execvp(const char *name, char * const* argv) {
 		printf("%s: command not found\n", name);
 	else
 		printf("%s: failed to execv\n", name);
-	return 1;
+	return -1;
 }

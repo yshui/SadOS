@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-
 static inline int readline(char **buf, int *len) {
 	char tmp[128];
 	int tlen = 0, off = 0;

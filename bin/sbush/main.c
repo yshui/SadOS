@@ -14,15 +14,12 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
 
-char **my_environ;
 int env_size, nenv;
 
-#include "string.h"
 #include "util.h"
-#include "unix.h"
-#include "env.h"
-#include "errno.h"
 #include "parse.h"
 
 const char *prompt = NULL;
@@ -32,7 +29,7 @@ static inline int builtin_export(struct pipe_part *p) {
 		return 1;
 	}
 	if (p->argc == 1) {
-		char **tmp = my_environ;
+		char **tmp = environ;
 		while(*tmp) {
 			printf("%s\n", *tmp);
 			tmp++;
@@ -112,15 +109,17 @@ static inline int exec_with_fd(int infd, int outfd, char **argv) {
 
 	char *slash = strchr(argv[0], '/');
 	if (slash) {
-		ret = execve(argv[0], argv, my_environ);
+		ret = execve(argv[0], argv, environ);
+	} else
+		ret = execvp(argv[0], argv);
+	if (ret < 0) {
 		if (errno == EACCES || errno == EPERM)
 			printf("%s: permission denied\n", argv[0]);
 		else if (errno == ENOENT)
 			printf("%s: command not found\n", argv[0]);
 		else
 			printf("%s: failed to execv\n", argv[0]);
-	} else
-		ret = execvp(argv[0], argv);
+	}
 	close(STDIN_FILENO);
 	close(STDOUT_FILENO);
 	exit(1);
@@ -176,7 +175,6 @@ struct builtin_cmd {
 
 int main(int argc, char **argv, char **envp) {
 	printf("Type 'help' to list available commands\n");
-	env_init(envp);
 	prompt = getenv("PS1");
 	if (!prompt)
 		prompt = "trash%";
