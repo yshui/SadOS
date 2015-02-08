@@ -10,6 +10,7 @@ static inline void env_init(void) {
 	char **tmp = environ;
 	while(*tmp++)
 		n++;
+	tmp = environ;
 	environ = malloc(sizeof(void *)*(n+1));
 	env_size = n+1;
 	nenv = n;

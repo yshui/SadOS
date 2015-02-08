@@ -4,8 +4,9 @@
 void (*_init)() __attribute__((weak)) = NULL;
 void (*_fini)() __attribute__((weak)) = NULL;
 
+//force -O1
 _Noreturn void _start() {
-__asm__ ( "xor %rbp,%rbp\n\t"
+__asm__ ("xor %rbp,%rbp\n\t"
 	"mov %rdx,%r9\n\t"
 	"pop %rsi\n\t"
 	"mov %rsp,%rdx\n\t"
