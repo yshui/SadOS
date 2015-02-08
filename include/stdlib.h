@@ -4,6 +4,7 @@
 #include <sys/defs.h>
 
 extern __thread int errno;
+extern char **environ;
 
 void exit(int status);
 
@@ -19,6 +20,7 @@ pid_t fork(void);
 pid_t getpid(void);
 pid_t getppid(void);
 int execve(const char *filename, char *const argv[], char *const envp[]);
+int execvp(const char *filename, char *const argv[]);
 pid_t waitpid(pid_t pid, int *status, int options);
 unsigned int sleep(unsigned int seconds);
 unsigned int alarm(unsigned int seconds);
@@ -53,5 +55,8 @@ struct dirent
 void *opendir(const char *name);
 struct dirent *readdir(void *dir);
 int closedir(void *dir);
+
+char *getenv(const char *);
+int putenv(const char *);
 
 #endif
