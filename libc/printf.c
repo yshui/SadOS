@@ -26,7 +26,7 @@ static inline int itoa(long a, char *str) {
 	}
 	tmp = a > 0 ? a : -a;
 	while(tmp) {
-		str[--n] = tmp%10;
+		str[--n] = tmp%10+'0';
 		tmp /= 10;
 	}
 	return ret;
@@ -110,6 +110,7 @@ int printf(const char *format, ...) {
 		format++;
 	}
 	write(1, res, len);
+	free(res);
 
 	return len;
 }

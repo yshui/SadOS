@@ -17,6 +17,8 @@ void *malloc(size_t s){
 	return ((size_t *)oldbrk)+1;
 }
 void free(void *ptr){
+	if (!ptr)
+		return;
 	size_t *hdr = (((size_t *)ptr)-1);
 	size_t size = *hdr;
 	if (!size&1) {
@@ -28,7 +30,7 @@ void free(void *ptr){
 		//try to free as much memory as possible
 		size_t *tmp = (size_t *)*hdr;
 		size_t *tmpn = hdr;
-		while (!(*tmp)&1) {
+		while (tmp && !(*tmp)&1) {
 			tmpn = tmp;
 			tmp = (size_t *)tmp;
 		}
