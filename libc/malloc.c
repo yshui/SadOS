@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "brk.h"
 //we will align allocation to 8 bytes
 static void *last_brk = NULL;
@@ -32,7 +33,7 @@ void free(void *ptr){
 		size_t *tmpn = hdr;
 		while (tmp && !(*tmp)&1) {
 			tmpn = tmp;
-			tmp = (size_t *)tmp;
+			tmp = *(size_t **)tmp;
 		}
 		if (brk(tmpn) < 0) {
 			printf("Failed to *free* memory???\n");

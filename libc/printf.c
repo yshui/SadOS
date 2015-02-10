@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-static inline int itoa(long a, char *str) {
+static inline int itoa(long a, int base, char *str) {
 	int n = 0;
 	long tmp = a > 0 ? a : -a;
 	while(tmp) {
@@ -26,8 +26,8 @@ static inline int itoa(long a, char *str) {
 	}
 	tmp = a > 0 ? a : -a;
 	while(tmp) {
-		str[--n] = tmp%10+'0';
-		tmp /= 10;
+		str[--n] = "0123456789abcdef"[tmp%base];
+		tmp /= base;
 	}
 	return ret;
 }
@@ -38,6 +38,7 @@ int printf(const char *format, ...) {
 	va_list val;
 	int num;
 	char *str;
+	char chr;
 	const char*tfmt = format;
 
 	va_start(val, format);
@@ -54,7 +55,11 @@ int printf(const char *format, ...) {
 			switch(*format) {
 			case 'd':
 				num = va_arg(val, int);
-				len += itoa(num, NULL);
+				len += itoa(num, 10, NULL);
+				break;
+			case 'x':
+				num = va_arg(val, int);
+				len += itoa(num, 16, NULL);
 				break;
 			case 's':
 				str = va_arg(val, char *);
@@ -62,6 +67,10 @@ int printf(const char *format, ...) {
 					len += 6; // for (null)
 				else
 					len += strlen(str);
+				break;
+			case 'c':
+				chr = va_arg(val, int);
+				len++;
 				break;
 			case '%':
 				len++;
@@ -87,7 +96,11 @@ int printf(const char *format, ...) {
 			switch(*format) {
 			case 'd':
 				num = va_arg(val, int);
-				pos += itoa(num, pos);
+				pos += itoa(num, 10, pos);
+				break;
+			case 'x':
+				num = va_arg(val, int);
+				pos += itoa(num, 16, pos);
 				break;
 			case 's':
 				str = va_arg(val, char *);
@@ -99,6 +112,10 @@ int printf(const char *format, ...) {
 					strcpy(pos, str);
 					pos += strlen(str);
 				}
+				break;
+			case 'c':
+				chr = va_arg(val, int);
+				*(pos++) = chr;
 				break;
 			case '%':
 				*(pos++) = '%';

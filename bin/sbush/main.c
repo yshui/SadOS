@@ -154,8 +154,10 @@ static inline int pipe_exec(struct cmd *c) {
 
 	while(child--) {
 		int status;
-		int pid = waitpid(-1, &status, 0);
+		int __attribute__((unused)) pid = waitpid(-1, &status, 0);
+#ifdef __DEBUG
 		printf("PID=%d, status=%d\n", pid, status);
+#endif
 	}
 	return 0;
 }
@@ -172,15 +174,30 @@ struct builtin_cmd {
 	{ .name = "help", .handler = builtin_help },
 	{ .name = NULL, .handler = NULL }
 };
-
+static int batch_mode = false;
 int main(int argc, char **argv, char **envp) {
-	printf("Type 'help' to list available commands\n");
+	if (argc > 1) {
+		batch_mode = true;
+		int infd = open(argv[1], O_RDONLY);
+		if (infd < 0) {
+			printf("Failed to open %s\n", argv[1]);
+			return 1;
+		}
+		int ret = dup2(infd, 0);
+		if (ret < 0) {
+			printf("Failed to dup2\n");
+			return 1;
+		}
+	}
+	if (!batch_mode)
+		printf("Type 'help' to list available commands\n");
 	prompt = getenv("PS1");
 	if (!prompt)
 		prompt = "trash%";
 
 	do {
-		printf("%s", prompt);
+		if (!batch_mode)
+			printf("%s", prompt);
 
 		struct cmd *c = parse();
 		if (!c)

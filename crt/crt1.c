@@ -4,7 +4,8 @@
 void (*_init)() __attribute__((weak)) = NULL;
 void (*_fini)() __attribute__((weak)) = NULL;
 
-//force -O1
+//no frame pointer to ruin our perfect stack
+__attribute__((optimize("omit-frame-pointer")))
 _Noreturn void _start() {
 __asm__ ("xor %rbp,%rbp\n\t"
 	"mov %rdx,%r9\n\t"

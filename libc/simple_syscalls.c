@@ -69,6 +69,7 @@ sys2(dup2, int, int, int)
 sys1(chdir, const char *, int)
 sys1(alarm, unsigned int, unsigned int)
 sys2(nanosleep, const struct timespec *, struct timespec *, int)
+sys3(getdents, unsigned int, struct linux_dirent *, unsigned int, int)
 
 #if 0
 static __inline uint64_t
