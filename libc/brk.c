@@ -13,8 +13,8 @@ static inline void *__brk(void *newbrk) {
 }
 
 int brk(void *newbrk) {
-	void *nowbrk = __brk(newbrk);
-	if (nowbrk != newbrk) {
+	current_brk = __brk(newbrk);
+	if (current_brk != newbrk) {
 		errno = ENOMEM;
 		return -1;
 	}

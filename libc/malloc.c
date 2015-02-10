@@ -31,7 +31,7 @@ void free(void *ptr){
 		//try to free as much memory as possible
 		size_t *tmp = (size_t *)*hdr;
 		size_t *tmpn = hdr;
-		while (tmp && !(*tmp)&1) {
+		while (tmp && !((*tmp)&1)) {
 			tmpn = tmp;
 			tmp = *(size_t **)tmp;
 		}
@@ -39,6 +39,6 @@ void free(void *ptr){
 			printf("Failed to *free* memory???\n");
 			exit(1);
 		}
-		last_brk = tmpn;
+		last_brk = tmp;
 	}
 }
