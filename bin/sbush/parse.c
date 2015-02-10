@@ -46,11 +46,15 @@ struct cmd *parse(void) {
 			if (p == exp)
 				state = 2;
 			else {
-				if (p == '\\')
+				int escape = 0;
+				if (p == '\\'){
 					p = getchar();
+					escape = 1;
+				}
 				if (p < 0)
 					break;
-				append(w, p);
+				if (p != '\n' || escape != 1)
+					append(w, p);
 			}
 			p = getchar();
 			continue;

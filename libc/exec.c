@@ -19,17 +19,14 @@ int execvp(const char *name, char * const* argv) {
 		buf[plen] = '/';
 		buf[plen+1] = '\0';
 		strcat(buf, argv[0]);
+#ifdef __LIBC_DEBUG
 		printf("Trying: %s\n", buf);
+#endif
 
 		execve(buf, argv, environ);
 		if (errno != ENOENT || tmp_errno == 0)
 			tmp_errno = errno;
 	}
-	if (tmp_errno == EACCES || tmp_errno == EPERM)
-		printf("%s: permission denied\n", name);
-	else if (tmp_errno == ENOENT)
-		printf("%s: command not found\n", name);
-	else
-		printf("%s: failed to execv\n", name);
+	errno = tmp_errno;
 	return -1;
 }
