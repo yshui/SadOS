@@ -16,8 +16,6 @@
 #pragma once
 #include <stdlib.h>
 
-#include "stddef.h"
-
 struct str {
 	int len;
 	struct str_block *head, *tail;
