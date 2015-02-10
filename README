@@ -22,3 +22,6 @@ When using the -curses mode, switch to the qemu> console with ESC-2.
 To connect a remote debugger to the running qemu VM:
   gdb ./kernel
   target remote localhost:9998
+
+Team Member:
+109955038 Yuxuan Shui
