@@ -57,6 +57,6 @@ struct dirent *readdir(void *dir);
 int closedir(void *dir);
 
 char *getenv(const char *);
-int putenv(const char *);
+int putenv(char *);
 
 #endif

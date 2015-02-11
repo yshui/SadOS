@@ -14,4 +14,4 @@
  */
 #include <stdlib.h>
 
-int errno;
+int __thread errno = 0;

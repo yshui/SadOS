@@ -14,6 +14,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 void (*_init)() __attribute__((weak)) = NULL;
 void (*_fini)() __attribute__((weak)) = NULL;

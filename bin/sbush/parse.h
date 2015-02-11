@@ -18,7 +18,6 @@
 #include <stdlib.h>
 
 struct argv_part {
-	//Unescaped argv parts
 	char *str;
 	struct argv_part *next;
 };
