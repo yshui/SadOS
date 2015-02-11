@@ -51,7 +51,7 @@ char *getenv(const char *name) {
 	return NULL;
 }
 
-int putenv(const char *p) {
+int putenv(char *p) {
 	if (!__env_init)
 		env_init();
 	char *tp = strdup(p);
@@ -66,7 +66,7 @@ int putenv(const char *p) {
 	while(*tmp) {
 		if (*tmp == old) {
 			free(*tmp);
-			*tmp = strdup(p);
+			*tmp = p;
 			return 0;
 		}
 		tmp++;
@@ -84,7 +84,7 @@ int putenv(const char *p) {
 		env_size = env_size*2;
 	}
 
-	environ[nenv] = strdup(p);
+	environ[nenv] = p;
 	if (!environ[nenv])
 		return -1;
 

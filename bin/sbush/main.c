@@ -38,7 +38,7 @@ static inline int builtin_export(struct pipe_part *p) {
 	}
 
 	char *envp = p->argv0->next->str;
-	int ret = putenv(envp);
+	int ret = putenv(strdup(envp));
 
 	if (strncmp(envp, "PS1", 3) == 0)
 		prompt = getenv("PS1");
@@ -151,6 +151,7 @@ static inline int pipe_exec(struct cmd *c) {
 			child++;
 		free(argv);
 	}
+	free(p);
 
 	while(child--) {
 		int status;
