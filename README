@@ -1,0 +1,24 @@
+The provided Makefile:
+  1) builds a kernel
+  2) copies it into rootfs/boot/kernel/kernel
+  3) creates an ISO CD image with the rootfs/ contents
+
+To boot the system in QEMU, run:
+  qemu-system-x86_64 -curses -cdrom $USER.iso -drive id=disk,file=$USER.img,if=none -device ahci,id=ahci -device ide-drive,drive=disk,bus=ahci.0 -net nic -net user,hostfwd=tcp::10080-:80 -net user,hostfwd=tcp::10023-:23 --no-reboot -gdb tcp::9998
+
+  Explanation of parameters:
+  -curses         use a text console (omit this to use default SDL/VNC console)
+  -cdrom x.iso    connect a CD-ROM and insert CD with x.iso disk
+  --no-reboot     exit when guest reboots
+  -gdb tcp::9998  listen for "remote" debugging connections on port 9998
+
+  connect a hard drive with x.img disk:
+  -drive id=disk,file=$USER.img,if=none -device ahci,id=ahci -device ide-drive,drive=disk,bus=ahci.0
+  connect a NIC and forward local port 10080 into port 80 and local port 10023 to port 23
+  -net nic -net user,hostfwd=tcp::10080-:80 -net user,hostfwd=tcp::10023-:23
+
+When using the -curses mode, switch to the qemu> console with ESC-2.
+
+To connect a remote debugger to the running qemu VM:
+  gdb ./kernel
+  target remote localhost:9998

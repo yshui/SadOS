@@ -9,7 +9,7 @@ int printf(const char *format, ...) {
 	va_start(val, format);
 
 	while(*format) {
-		write(1, format, 1);
+		//write(1, format, 1);
 		++printed;
 		++format;
 	}
