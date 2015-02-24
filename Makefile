@@ -10,9 +10,10 @@ ROOTBIN=$(ROOTFS)/bin
 ROOTLIB=$(ROOTFS)/lib
 ROOTBOOT=$(ROOTFS)/boot
 
-KERN_SRCS:=$(wildcard sys/*.c sys/*.s sys/*/*.c sys/*/*.s)
-BIN_SRCS:=$(wildcard bin/*/*.c)
-LIBC_SRCS:=$(wildcard libc/*.c libc/*/*.c)
+KERN_SRCS:=$(shell find sys/ -name *.c -o -name *.s)
+LIBC_SRCS:=$(shell find libc/ -name *.c -o -name *.s)
+CRT_SRCS:=$(shell find crt/ -name *.c -o -name *.s)
+BIN_SRCS:=$(shell find bin/* -name *.c)
 INCLUDES:=$(shell find include/ -type f -name *.h)
 BINS:=$(addprefix $(ROOTFS)/,$(wildcard bin/*))
 
@@ -39,17 +40,14 @@ obj/tarfs.o: $(BINS)
 	objcopy --input binary --binary-architecture i386 --output elf64-x86-64 tarfs $@
 	@rm tarfs
 
-$(ROOTLIB)/libc.a: $(LIBC_SRCS:%.c=obj/%.o)
+$(ROOTLIB)/libc.a: $(patsubst %.s,obj/%.asm.o,$(LIBC_SRCS:%.c=obj/%.o))
 	$(AR) rcs $@ $^
 
-$(ROOTLIB)/crt1.o: obj/crt/crt1.o
-	cp $^ $@
-
-$(BINS): $(ROOTLIB)/crt1.o $(ROOTLIB)/libc.a $(shell find bin/ -type f -name *.c) $(INCLUDES)
+$(BINS): $(patsubst %.s,obj/%.asm.o,$(CRT_SRCS:%.c=obj/%.o)) $(ROOTLIB)/libc.a $(shell find bin/ -type f -name *.c) $(INCLUDES)
 	@$(MAKE) --no-print-directory BIN=$@ binary
 
 binary: $(patsubst %.c,obj/%.o,$(wildcard $(BIN:rootfs/%=%)/*.c))
-	$(LD) $(LDLAGS) -o $(BIN) $(ROOTLIB)/crt1.o $^ $(ROOTLIB)/libc.a
+	$(LD) $(LDLAGS) -o $(BIN) $(patsubst %.s,obj/%.asm.o,$(CRT_SRCS:%.c=obj/%.o)) $^ $(ROOTLIB)/libc.a
 
 obj/%.o: %.c $(INCLUDES)
 	@mkdir -p $(dir $@)
