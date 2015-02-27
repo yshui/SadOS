@@ -9,4 +9,5 @@ SECTIONS
 	.got ALIGN(0x1000): { *(.got) *(.got.plt) }
 	.bss ALIGN(0x1000): { *(.bss) *(COMMON) }
 	.data : { *(.data) }
+	kernend = .;
 }

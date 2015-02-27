@@ -54,7 +54,7 @@ static struct gdtr_t gdtr = {
 void _x86_64_asm_lgdt(struct gdtr_t* gdtr, uint64_t cs_idx, uint64_t ds_idx);
 
 void reload_gdt() {
-	_x86_64_asm_lgdt(&gdtr, 8, 16);
+	_x86_64_asm_lgdt(&gdtr, KERN_CS*8, KERN_DS*8);
 }
 
 void setup_tss() {
