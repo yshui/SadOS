@@ -12,10 +12,10 @@
  *    University, unless the submitter is the copyright
  *    holder.
  */
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <sys/mm.h>
+#include <sys/drivers/vga_text.h>
 
 static inline int itoa(long a, int base, char *str, int width, int sign) {
 	int n = 0;
@@ -66,64 +66,17 @@ static inline int itoa(long a, int base, char *str, int width, int sign) {
 	return ret;
 }
 
-const char *fmt_err = "Invalid printf format string\n";
-
-int printf(const char *format, ...) {
+void printf(const char *format, ...) {
 	va_list val;
 	int num;
+	size_t ptr;
 	char *str;
 	char chr;
-	const char*tfmt = format;
 
+	//We don't have memory allocation yet
+	//So we just use as many memory as we like from kernend
+	char *pos = &kernend;
 	va_start(val, format);
-
-	//first, calculate how much space we need
-	size_t len = 0;
-	while(*format) {
-		if (*format == '%') {
-			format++;
-			if (!format) {
-				write(1, fmt_err, strlen(fmt_err));
-				return 0;
-			}
-			switch(*format) {
-			case 'd':
-				num = va_arg(val, int);
-				len += itoa(num, 10, NULL, 0, 1);
-				break;
-			case 'x':
-				num = va_arg(val, int);
-				len += itoa(num, 16, NULL, 0, 0);
-				break;
-			case 's':
-				str = va_arg(val, char *);
-				if (!str)
-					len += 6; // for (null)
-				else
-					len += strlen(str);
-				break;
-			case 'c':
-				chr = va_arg(val, int);
-				len++;
-				break;
-			case '%':
-				len++;
-				break;
-			default:
-				write(1, fmt_err, strlen(fmt_err));
-				return 0;
-			}
-
-		} else
-			len++;
-		format++;
-	}
-	va_end(val);
-
-	char *res = malloc(len);
-	char *pos = res;
-	va_start(val, format);
-	format = tfmt;
 	while(*format) {
 		if (*format == '%') {
 			format++;
@@ -135,6 +88,12 @@ int printf(const char *format, ...) {
 			case 'x':
 				num = va_arg(val, int);
 				pos += itoa(num, 16, pos, 0, 0);
+				break;
+			case 'p':
+				ptr = va_arg(val, size_t);
+				*(pos++) = '0';
+				*(pos++) = 'x';
+				pos += itoa(ptr, 16, pos, 8, 0);
 				break;
 			case 's':
 				str = va_arg(val, char *);
@@ -160,8 +119,6 @@ int printf(const char *format, ...) {
 			*(pos++) = *format;
 		format++;
 	}
-	write(1, res, len);
-	free(res);
-
-	return len;
+	*pos = 0;
+	puts(&kernend);
 }

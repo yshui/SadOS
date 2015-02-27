@@ -1,4 +1,3 @@
-#include "../include/sys/defs.h"
 #include <stdio.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -6,6 +5,8 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <stdint.h>
+#include <unistd.h>
 
 struct superblock {
 	uint32_t magic;

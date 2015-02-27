@@ -3,6 +3,9 @@
 
 #include <sys/defs.h>
 
+#define KERN_CS (1)
+#define KERN_DS (2)
+
 struct tss_t {
 	uint32_t reserved;
 	uint64_t rsp0;
