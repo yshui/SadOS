@@ -116,21 +116,28 @@ static inline void caps(int up) {
 		puts_at("    ", 22, 76, 0x0);
 }
 
+static inline void press(void) {
+	puts_at("Pressing ", 23, 67, KBD_DISPLAY_COLOR);
+}
+
+static inline void release(void) {
+	puts_at("Released ", 23, 67, KBD_DISPLAY_COLOR);
+}
+
 static inline void do_key(int symbol, int up) {
 	char c[2];
 	c[1] = 0;
 	if (up) {
-		puts_at("   ", 23, 77, 0x0);
+		release();
 		return;
 	}
+	puts_at("   ", 23, 77, 0x0);
 	c[0] = key_map[symbol];
 	if ((state2&12))
 		c[0] = shift_map[symbol];
-	if (!c[0]) {
-		//Not printable, clear screen corner
-		puts_at("   ", 23, 77, 0x0);
+	if (!c[0])
+		//Not printable
 		return;
-	}
 	if ((c[0]>='a' && c[0]<='z') ||
 	    (c[0]>='A' && c[0]<='Z'))
 		if (state2 & CAPS_LOCK)
@@ -138,19 +145,21 @@ static inline void do_key(int symbol, int up) {
 	if (state2&3)
 		puts_at("^", 23, 78, KBD_DISPLAY_COLOR);
 	puts_at(c, 23, 79, KBD_DISPLAY_COLOR);
+	press();
 }
 
 static void do_control_key(int symbol, int up) {
 	if (up) {
-		puts_at("   ", 23, 77, 0x0);
+		release();
 		return;
 	}
+	puts_at("   ", 23, 77, 0x0);
 	if (symbol >= 0x3B && symbol < 0x44) {
 		char c[2] = {(symbol-0x3a)+'0', 0};
 		puts_at("F", 23, 78, KBD_DISPLAY_COLOR);
 		puts_at(c, 23, 79, KBD_DISPLAY_COLOR);
-	}
-	switch(symbol) {
+	} else {
+		switch(symbol) {
 		case 0x0e :
 			puts_at("^H", 23, 78, KBD_DISPLAY_COLOR);
 			break;
@@ -165,8 +174,9 @@ static void do_control_key(int symbol, int up) {
 			break;
 		case 0x44 :
 			puts_at("F10", 23, 77, KBD_DISPLAY_COLOR);
+		}
 	}
-
+	press();
 }
 
 static inline void state_transition(uint8_t symbol) {
