@@ -1,3 +1,5 @@
+/* No Copyright */
+/* Public Domain */
 #ifndef _DEFS_H
 #define _DEFS_H
 

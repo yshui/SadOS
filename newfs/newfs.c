@@ -1,3 +1,5 @@
+/* No Copyright */
+/* Public Domain */
 #include <stdio.h>
 #include <errno.h>
 #include <sys/types.h>
