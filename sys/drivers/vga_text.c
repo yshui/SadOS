@@ -82,7 +82,7 @@ void puts(const char *str) {
 		}
 		str++;
 	}
-	//set_cursor();
+	set_cursor();
 }
 
 void puts_at(const char *str, uint8_t x, uint8_t y, uint8_t color) {

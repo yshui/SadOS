@@ -1,13 +1,19 @@
 #include <sys/sbunix.h>
+#include <sys/interrupt.h>
 #include <sys/gdt.h>
+#include <sys/idt.h>
 #include <sys/tarfs.h>
 #include <sys/portio.h>
 #include <sys/cpu.h>
 #include <sys/mm.h>
+#include <sys/msr.h>
+#include <sys/apic.h>
+#include <sys/paging.h>
+#include <sys/i8259.h>
 #include <sys/drivers/vga_text.h>
-
+#include <sys/drivers/kbd.h>
+extern void timer_init(void);
 _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
-	vga_text_init();
 	struct smap_t {
 		uint64_t base, length;
 		uint32_t type;
@@ -22,20 +28,29 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 		}
 	}
 	printf("tarfs in [%p:%p]\n", &_binary_tarfs_start, &_binary_tarfs_end);
+	timer_init();
+	kbd_init();
+
 	// kernel starts here
 	while(1)
+		//printf("%d\n", apic_read(0x390));
 		__idle();
 }
 
 #define INITIAL_STACK_SIZE 4096
 char stack[INITIAL_STACK_SIZE];
 uint32_t* loader_stack;
-struct tss_t tss;
 
 _Noreturn void real_boot(void)
 {
+	//__asm__ volatile ("cli");
 	reload_gdt();
 	setup_tss();
+	paging_init();
+	vga_text_init();
+	i8259_init();
+	apic_init();
+	idt_init();
 	start(
 		(uint32_t*)((char*)(uint64_t)loader_stack[1] + (uint64_t)&kernmem - (uint64_t)&physbase),
 		&physbase,
@@ -50,19 +65,3 @@ _Noreturn void real_boot(void)
 
 	while(1);
 }
-
-#if 0
-_Noreturn __attribute__((optimize("omit-frame-pointer")))
-void boot1(void){
-	// note: function changes rsp, local stack variables can't be practically used
-	__asm__(
-		"movq %%rsp, %0\n\t"
-		"movq %1, %%rsp;\n\t"
-		"call real_boot\n\t"
-		"hlt"
-		:"=g"(loader_stack)
-		:"r"(stack+INITIAL_STACK_SIZE)
-	);
-	__builtin_unreachable();
-}
-#endif
