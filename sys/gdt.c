@@ -32,6 +32,18 @@ struct sys_segment_descriptor {
 	uint64_t sd_xx3:19;    /* reserved */
 }__attribute__((packed));
 
+struct tss_t {
+	uint32_t reserved0;
+	uint64_t rsp[3];
+	uint64_t reserved1;
+	uint64_t ist[8];
+	uint64_t reserved2;
+	uint16_t reserved3;
+	uint16_t iobase;
+}__attribute__((packed));
+
+struct tss_t tss;
+
 uint64_t gdt[MAX_GDT] = {
 	0,                      /*** NULL descriptor ***/
 	GDT_CS | P | DPL0 | L,  /*** kernel code segment descriptor ***/
@@ -57,14 +69,25 @@ void reload_gdt() {
 	_x86_64_asm_lgdt(&gdtr, KERN_CS*8, KERN_DS*8);
 }
 
+static inline void load_tss(uint16_t idx) {
+	__asm__ volatile ("ltr %0" : : "r"(idx));
+}
+
+extern char stack[];
+
 void setup_tss() {
 	struct sys_segment_descriptor* sd = (struct sys_segment_descriptor*)&gdt[5]; // 6th&7th entry in GDT
-	sd->sd_lolimit = sizeof(struct tss_t)-1;
-	sd->sd_lobase = ((uint64_t)&tss);
+	sd->sd_lolimit = sizeof(struct tss_t);
+	sd->sd_lobase = ((uint64_t)&tss)&0xffffff;
 	sd->sd_type = 9; // 386 TSS
 	sd->sd_dpl = 0;
 	sd->sd_p = 1;
 	sd->sd_hilimit = 0;
 	sd->sd_gran = 0;
 	sd->sd_hibase = ((uint64_t)&tss) >> 24;
+
+	//Put a rsp in ist as well, just in case
+	tss.rsp[0] = (uint64_t)((char *)stack+4096);
+	tss.ist[0] = (uint64_t)((char *)stack+4096);
+	load_tss(40);
 }

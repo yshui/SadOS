@@ -1,3 +1,19 @@
+Team Member:
+109955038 Yuxuan Shui
+
+Displayed keys includes:
+
+* All printable characters
+* F1~F10
+* Backspace(^H), Enter(^M), Tab(^I), ESC(^[)
+
+Recognized special keys includes:
+
+* Left/Right Ctrl
+* Left/Right Shift
+* Caps Lock
+
+============================================================================
 The provided Makefile:
   1) builds a kernel
   2) copies it into rootfs/boot/kernel/kernel
@@ -22,6 +38,3 @@ When using the -curses mode, switch to the qemu> console with ESC-2.
 To connect a remote debugger to the running qemu VM:
   gdb ./kernel
   target remote localhost:9998
-
-Team Member:
-109955038 Yuxuan Shui

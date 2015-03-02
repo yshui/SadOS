@@ -17,7 +17,7 @@
 #include <sys/mm.h>
 #include <sys/drivers/vga_text.h>
 
-static inline int itoa(long a, int base, char *str, int width, int sign) {
+int itoa(long a, int base, char *str, int width, int sign) {
 	int n = 0;
 	unsigned long tmp;
 	if (sign)
@@ -66,6 +66,7 @@ static inline int itoa(long a, int base, char *str, int width, int sign) {
 	return ret;
 }
 
+void * const printf_buf_start = &kernend+0x2000;
 void printf(const char *format, ...) {
 	va_list val;
 	int num;
@@ -75,7 +76,7 @@ void printf(const char *format, ...) {
 
 	//We don't have memory allocation yet
 	//So we just use as many memory as we like from kernend
-	char *pos = &kernend;
+	char *pos = printf_buf_start;
 	va_start(val, format);
 	while(*format) {
 		if (*format == '%') {
@@ -120,5 +121,5 @@ void printf(const char *format, ...) {
 		format++;
 	}
 	*pos = 0;
-	puts(&kernend);
+	puts(printf_buf_start);
 }
