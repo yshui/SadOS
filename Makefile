@@ -10,11 +10,13 @@ ROOTBIN=$(ROOTFS)/bin
 ROOTLIB=$(ROOTFS)/lib
 ROOTBOOT=$(ROOTFS)/boot
 
-KERN_SRCS:=$(shell find sys/ -name *.c -o -name *.s)
-LIBC_SRCS:=$(shell find libc/ -name *.c -o -name *.s)
-CRT_SRCS:=$(shell find crt/ -name *.c -o -name *.s)
-BIN_SRCS:=$(shell find bin/* -name *.c)
-INCLUDES:=$(shell find include/ -type f -name *.h)
+SHELL=/bin/sh
+
+KERN_SRCS:=$(shell find sys/ -name \*.c -o -name \*.s)
+LIBC_SRCS:=$(shell find libc/ -name \*.c -o -name \*.s)
+CRT_SRCS:=$(shell find crt/ -name \*.c -o -name \*.s)
+BIN_SRCS:=$(shell find bin/\* -name \*.c)
+INCLUDES:=$(shell find include/ -type f -name \*.h)
 BINS:=$(addprefix $(ROOTFS)/,$(wildcard bin/*))
 
 .PHONY: all binary
@@ -43,7 +45,7 @@ obj/tarfs.o: $(BINS)
 $(ROOTLIB)/libc.a: $(patsubst %.s,obj/%.asm.o,$(LIBC_SRCS:%.c=obj/%.o))
 	$(AR) rcs $@ $^
 
-$(BINS): $(patsubst %.s,obj/%.asm.o,$(CRT_SRCS:%.c=obj/%.o)) $(ROOTLIB)/libc.a $(shell find bin/ -type f -name *.c) $(INCLUDES)
+$(BINS): $(patsubst %.s,obj/%.asm.o,$(CRT_SRCS:%.c=obj/%.o)) $(ROOTLIB)/libc.a $(shell find bin/ -type f -name \*.c) $(INCLUDES)
 	@$(MAKE) --no-print-directory BIN=$@ binary
 
 binary: $(patsubst %.c,obj/%.o,$(wildcard $(BIN:rootfs/%=%)/*.c))
