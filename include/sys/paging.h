@@ -13,5 +13,6 @@
  *    holder.
  */
 #pragma once
+#include <sys/mm.h>
 
-void paging_init(void);
+uint64_t paging_init_early(struct smap_t *, int);

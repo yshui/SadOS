@@ -3,12 +3,13 @@ SECTIONS
 {
 	physbase = 0x200000;
 	physoffset = 0xffffffff80000000;
-	kernmem = physoffset + physbase;
-	. = kernmem + SIZEOF_HEADERS;
+	kernbase = physoffset + physbase;
+	. = kernbase + SIZEOF_HEADERS;
 	.text : { *(.text) }
 	.rodata : { *(.rodata) }
 	.got ALIGN(0x1000): { *(.got) *(.got.plt) }
 	.bss ALIGN(0x1000): { *(.bss) *(COMMON) }
 	.data : { *(.data) }
 	kernend = .;
+	physend = kernend - physoffset;
 }

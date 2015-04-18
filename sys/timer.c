@@ -41,7 +41,7 @@ void pit_handler(int v) {
 		//Get some space at the end of kernel
 		char *str = &kernend;
 		int len = itoa(count/41, 10, str, 0, 0);
-		puts_at(str, 24, 80-len, 7);
+		vga_puts_at(str, 24, 80-len, 7);
 	}
 }
 extern void pit_wrapper(void);
@@ -91,6 +91,6 @@ void timer_handler(void) {
 	//Get some space at the end of kernel
 	char *str = &kernend;
 	int len = itoa(count, 10, str, 0, 0);
-	puts_at(str, 24, 80-len, 7);
+	vga_puts_at(str, 24, 80-len, 7);
 }
 #endif

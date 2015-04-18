@@ -14,6 +14,7 @@
  */
 #include <sys/portio.h>
 #include <stdio.h>
+#include <sys/lib/printf.h>
 #define R (25)
 #define C (80)
 #define VBASE ((uint8_t *)0xb8000)
@@ -21,15 +22,19 @@
 static uint16_t video_port = 0;
 static uint8_t pos_x, pos_y;
 static uint8_t *voff = VBASE;
+static uint8_t *vbase = NULL;
 static uint8_t buffer[4096];
 static uint16_t offset;
-void vga_text_init(void) {
-	video_port = *(uint16_t *)(0x463);
-	uint8_t *v = VBASE;
-	while(v-VBASE <= R*C*2) {
+static int vga_puts(const char *);
+void vga_text_init(uint64_t vmbase) {
+	video_port = *(uint16_t *)(vmbase+0x463);
+	vbase = (void *)((uint64_t)VBASE+vmbase);
+	uint8_t *v = vbase;
+	while(v-vbase <= R*C*2) {
 		*(v++) = 0;
 		*(v++) = 0x07;
 	}
+	print_handler = vga_puts;
 }
 
 void set_cursor(void) {
@@ -44,13 +49,13 @@ void blit(void) {
 	int start = offset-(pos_y+(pos_x-1)*C)*2;
 	if (start < 0)
 		start += VBUF_SIZE;
-	uint8_t *v = VBASE;
+	uint8_t *v = vbase;
 	while(start != offset) {
 		*(v++) = buffer[start];
 		start = (start+1)%VBUF_SIZE;
 	}
 	voff = v;
-	while(v-VBASE <= R*C*2) {
+	while(v-vbase <= R*C*2) {
 		*(v++) = 0;
 		*(v++) = 0x07;
 	}
@@ -76,7 +81,8 @@ void line_feed(void) {
 	set_cursor();
 }
 
-void puts(const char *str) {
+static int vga_puts(const char *str) {
+	int c = 0;
 	while(*str) {
 		switch(*str) {
 		case '\n':
@@ -95,18 +101,20 @@ void puts(const char *str) {
 			break;
 		}
 		str++;
+		c++;
 	}
 	set_cursor();
+	return c;
 }
 
-void puts_at(const char *str, uint8_t x, uint8_t y, uint8_t color) {
+void vga_puts_at(const char *str, uint8_t x, uint8_t y, uint8_t color) {
 	//Put a string at give position
 	//The string is not put into buffer, so will lost when scroll
-	uint8_t *v = VBASE+(x*C+y)*2;
+	uint8_t *v = vbase+(x*C+y)*2;
 	while(*str) {
 		*(v++) = *str;
 		*(v++) = color;
-		if (v >= VBASE+R*C*2)
+		if (v >= vbase+R*C*2)
 			//Don't go over the end
 			break;
 		str++;
