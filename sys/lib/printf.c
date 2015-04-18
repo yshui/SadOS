@@ -14,8 +14,11 @@
  */
 #include <stdarg.h>
 #include <string.h>
-#include <sys/mm.h>
+#include <sys/kernaddr.h>
 #include <sys/drivers/vga_text.h>
+#include <sys/lib/printf.h>
+
+int (*print_handler)(const char *);
 
 int itoa(long a, int base, char *str, int width, int sign) {
 	int n = 0;
@@ -66,8 +69,8 @@ int itoa(long a, int base, char *str, int width, int sign) {
 	return ret;
 }
 
-void * const printf_buf_start = &kernend+0x2000;
-void printf(const char *format, ...) {
+static char printf_buf[8192];
+int printf(const char *format, ...) {
 	va_list val;
 	int num;
 	size_t ptr;
@@ -76,7 +79,7 @@ void printf(const char *format, ...) {
 
 	//We don't have memory allocation yet
 	//So we just use as many memory as we like from kernend
-	char *pos = printf_buf_start;
+	char *pos = printf_buf;
 	va_start(val, format);
 	while(*format) {
 		if (*format == '%') {
@@ -121,5 +124,5 @@ void printf(const char *format, ...) {
 		format++;
 	}
 	*pos = 0;
-	puts(printf_buf_start);
+	return print_handler(printf_buf);
 }

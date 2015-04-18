@@ -20,35 +20,58 @@
 #include <sys/portio.h>
 #include <sys/cpu.h>
 #include <sys/mm.h>
+#include <sys/kernaddr.h>
 #include <sys/msr.h>
 #include <sys/apic.h>
 #include <sys/paging.h>
 #include <sys/i8259.h>
 #include <sys/drivers/vga_text.h>
 #include <sys/drivers/kbd.h>
+#include <sys/drivers/serio.h>
+#include <string.h>
 extern void timer_init(void);
+struct smap_t smap_buf[20];
+int ptsetup;
 _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
-	struct smap_t {
-		uint64_t base, length;
-		uint32_t type;
-	}__attribute__((packed)) *smap;
+	struct smap_t *smap;
+	uint64_t vmbase;
+	int i, smap_len;
+
+	reload_gdt();
+	setup_tss();
+	serial_init();
+	printf("Serial test\n");
+	i8259_init();
+	apic_init();
+	idt_init();
+
 	while(modulep[0] != 0x9001)
 		modulep += modulep[1]+2;
-	int count = 0;
-	for(smap = (struct smap_t*)(modulep+2); smap < (struct smap_t*)((char*)modulep+modulep[1]+2*4); ++smap) {
-		if (smap->type == 1 /* memory */ && smap->length != 0) {
-			printf("Available Physical Memory [%x-%x]\n", smap->base, smap->base + smap->length);
-			count ++;
-		}
-	}
+	smap = (struct smap_t *)(modulep+2);
+	smap_len = modulep[1]/sizeof(struct smap_t);
+	memcpy(smap_buf, smap, smap_len*sizeof(struct smap_t));
+	vmbase = paging_init_early(smap_buf, smap_len);
+	//get_page is usable from this point onwards.
+
+	smap = smap_buf;
+	for(i = 0; i < smap_len; i++)
+		printf("Physical Memory [%x-%x] %s\n", smap[i].base,
+		       smap[i].base+smap[i].length,
+		       smap[i].type == 1 ? "Available" : "Reserved");
 	printf("tarfs in [%p:%p]\n", &_binary_tarfs_start, &_binary_tarfs_end);
+	vga_text_init(vmbase);
 	timer_init();
 	kbd_init();
+
+	uint64_t p1, p2;
+	cpuid(0x80000001, &p1, &p2);
+	printf("1Gb page: %d\n", (p2>>26)&1);
 
 	// kernel starts here
 	while(1)
 		//printf("%d\n", apic_read(0x390));
 		__idle();
+
 }
 
 #define INITIAL_STACK_SIZE 4096
@@ -57,16 +80,8 @@ uint32_t* loader_stack;
 
 _Noreturn void real_boot(void)
 {
-	//__asm__ volatile ("cli");
-	reload_gdt();
-	setup_tss();
-	paging_init();
-	vga_text_init();
-	i8259_init();
-	apic_init();
-	idt_init();
 	start(
-		(uint32_t*)((char*)(uint64_t)loader_stack[1] + (uint64_t)&kernmem - (uint64_t)&physbase),
+		(uint32_t*)((char*)(uint64_t)loader_stack[1] + (uint64_t)&kernbase - (uint64_t)&physbase),
 		&physbase,
 		(void*)(uint64_t)loader_stack[4]
 	);

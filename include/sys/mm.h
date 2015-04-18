@@ -13,4 +13,36 @@
  *    holder.
  */
 #pragma once
-extern char kernmem, kernend, physbase;
+#include <sys/defs.h>
+
+//Mappings are not immediately reflected in page table
+//Don't user for kernel address space
+#define AS_LAZY 0x1
+
+//Hardware reserved range
+#define VMA_RESERVED 0x1
+
+#define PAGE_SIZE (0x1000)
+#define KERN_VMBASE (0xffff800000000000ull) //Start address for whole physical page mapping
+
+struct smap_t {
+	uint64_t base, length;
+	uint32_t type;
+}__attribute__((packed));
+
+struct memory_range {
+	uint64_t base, length;
+	struct memory_range *next;
+};
+
+uint64_t make_virtual_addr_for_physical(uint64_t addr);
+
+void page_allocator_init(uint64_t, uint64_t, struct memory_range *, int nrm);
+void *get_page();
+void drop_page(void *);
+
+struct obj_pool;
+
+struct obj_pool *obj_pool_new(uint64_t);
+void *obj_pool_alloc(struct obj_pool *);
+void obj_pool_free(struct obj_pool *, void *);

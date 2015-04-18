@@ -78,12 +78,15 @@ enum {
 #define RSHIFT_DOWN 8
 #define CAPS_LOCK 16
 static int state2 = 0;
+extern int ptsetup;
 
 static inline void rctrl(int up) {
 	if (up)
 		state2 &= ~RCTRL_DOWN;
 	else
 		state2 |= RCTRL_DOWN;
+	if (!ptsetup)
+		ptsetup = 1;
 };
 
 static inline void lctrl(int up) {
@@ -111,17 +114,17 @@ static inline void caps(int up) {
 		return;
 	state2 ^= CAPS_LOCK;
 	if (state2 & CAPS_LOCK)
-		puts_at("CAPS", 22, 76, 0x4f);
+		vga_puts_at("CAPS", 22, 76, 0x4f);
 	else
-		puts_at("    ", 22, 76, 0x0);
+		vga_puts_at("    ", 22, 76, 0x0);
 }
 
 static inline void press(void) {
-	puts_at("Pressing ", 23, 67, KBD_DISPLAY_COLOR);
+	vga_puts_at("Pressing ", 23, 67, KBD_DISPLAY_COLOR);
 }
 
 static inline void release(void) {
-	puts_at("Released ", 23, 67, KBD_DISPLAY_COLOR);
+	vga_puts_at("Released ", 23, 67, KBD_DISPLAY_COLOR);
 }
 
 static inline void do_key(int symbol, int up) {
@@ -131,7 +134,7 @@ static inline void do_key(int symbol, int up) {
 		release();
 		return;
 	}
-	puts_at("   ", 23, 77, 0x0);
+	vga_puts_at("   ", 23, 77, 0x0);
 	c[0] = key_map[symbol];
 	if ((state2&12))
 		c[0] = shift_map[symbol];
@@ -143,8 +146,8 @@ static inline void do_key(int symbol, int up) {
 		if (state2 & CAPS_LOCK)
 			c[0] ^= 32;
 	if (state2&3)
-		puts_at("^", 23, 78, KBD_DISPLAY_COLOR);
-	puts_at(c, 23, 79, KBD_DISPLAY_COLOR);
+		vga_puts_at("^", 23, 78, KBD_DISPLAY_COLOR);
+	vga_puts_at(c, 23, 79, KBD_DISPLAY_COLOR);
 	press();
 }
 
@@ -153,27 +156,27 @@ static void do_control_key(int symbol, int up) {
 		release();
 		return;
 	}
-	puts_at("   ", 23, 77, 0x0);
+	vga_puts_at("   ", 23, 77, 0x0);
 	if (symbol >= 0x3B && symbol < 0x44) {
 		char c[2] = {(symbol-0x3a)+'0', 0};
-		puts_at("F", 23, 78, KBD_DISPLAY_COLOR);
-		puts_at(c, 23, 79, KBD_DISPLAY_COLOR);
+		vga_puts_at("F", 23, 78, KBD_DISPLAY_COLOR);
+		vga_puts_at(c, 23, 79, KBD_DISPLAY_COLOR);
 	} else {
 		switch(symbol) {
 		case 0x0e :
-			puts_at("^H", 23, 78, KBD_DISPLAY_COLOR);
+			vga_puts_at("^H", 23, 78, KBD_DISPLAY_COLOR);
 			break;
 		case 0x1c :
-			puts_at("^M", 23, 78, KBD_DISPLAY_COLOR);
+			vga_puts_at("^M", 23, 78, KBD_DISPLAY_COLOR);
 			break;
 		case 0x0f :
-			puts_at("^I", 23, 78, KBD_DISPLAY_COLOR);
+			vga_puts_at("^I", 23, 78, KBD_DISPLAY_COLOR);
 			break;
 		case 0x01 :
-			puts_at("^[", 23, 78, KBD_DISPLAY_COLOR);
+			vga_puts_at("^[", 23, 78, KBD_DISPLAY_COLOR);
 			break;
 		case 0x44 :
-			puts_at("F10", 23, 77, KBD_DISPLAY_COLOR);
+			vga_puts_at("F10", 23, 77, KBD_DISPLAY_COLOR);
 		}
 	}
 	press();
