@@ -16,14 +16,13 @@
 #include <sys/defs.h>
 
 //Mappings are not immediately reflected in page table
-//Don't user for kernel address space
+//Don't use for kernel address space
 #define AS_LAZY 0x1
 
-//Hardware reserved range
-#define AS_KERNEL 0x1
+#define VMA_RW 0x1
 
 #define PAGE_SIZE (0x1000)
-#define KERN_VMBASE (0xffff800000000000ull) //Start address for whole physical page mapping
+#define KERN_VMBASE (0xffff808000000000ull) //Start address for whole physical page mapping
 #define KERN_TOP (0xfffffffffffff000ull)
 
 #define USER_BASE (0x400000ull)
@@ -53,7 +52,7 @@ struct address_space;
 extern struct address_space kern_aspace;
 
 void memory_init(struct smap_t *, int);
-uint64_t *new_table(uint64_t *, uint64_t, int, int);
+void map_page(uint64_t, uint64_t, int, int);
 static inline uint64_t
 pte_set_base(uint64_t in, uint64_t base, int type) {
 	uint64_t clr = in & (~0xffffffffff000);
@@ -75,6 +74,7 @@ pte_set_base(uint64_t in, uint64_t base, int type) {
 void page_allocator_init_early(uint64_t, int);
 void page_allocator_init(struct smap_t *, int, struct memory_range *);
 void *get_page();
+uint64_t get_phys_page();
 void drop_page(void *);
 
 struct obj_pool;
@@ -86,5 +86,5 @@ void obj_pool_free(struct obj_pool *, void *);
 void kaddress_space_init(void *, uint64_t, struct memory_range *);
 uint64_t kphysical_lookup(uint64_t);
 uint64_t kmmap_to_vmbase(uint64_t addr);
-int kmmap_to_vaddr(uint64_t addr, uint64_t vaddr, uint64_t length);
-uint64_t kmmap_to_any(uint64_t addr, uint64_t length);
+int kmmap_to_vaddr(uint64_t addr, uint64_t vaddr, uint64_t length, int flags);
+uint64_t kmmap_to_any(uint64_t addr, uint64_t length, int flags);

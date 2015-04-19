@@ -15,4 +15,4 @@
 #pragma once
 
 extern int (*print_handler)(const char *);
-int printf(const char *fmt, ...);
+int printk(const char *fmt, ...);

@@ -4,6 +4,7 @@
 #include <sys/mm.h>
 #include <sys/kernaddr.h>
 #include <sys/panic.h>
+#include <sys/printk.h>
 struct vm_area {
 	int vma_flags;
 	int page_size; //0 for 4k, 1 for 2M
@@ -31,6 +32,13 @@ struct page {
 struct address_space kern_aspace;
 static struct obj_pool *aspace_pool = NULL;
 
+static inline int vma_flags_to_page_flags(int vmaf) {
+	uint64_t res = 0;
+	if (vmaf & VMA_RW)
+		res |= PTE_W;
+	return res;
+}
+
 static int aspace_add_vma(struct address_space *as, struct vm_area *vma) {
 	if (!as->vma) {
 		as->vma = vma;
@@ -38,22 +46,22 @@ static int aspace_add_vma(struct address_space *as, struct vm_area *vma) {
 		vma->next = NULL;
 		return 0;
 	}
-	struct vm_area *now = as->vma;
-	while(now->next) {
-		if (now->next->vma_begin > vma->vma_begin)
+	struct vm_area **now = &as->vma;
+	while(*now) {
+		if ((*now)->vma_begin > vma->vma_begin)
 			break;
+		if ((*now)->vma_begin+(*now)->vma_length > vma->vma_begin)
+			return -1;
 	}
 	uint64_t vma_end = vma->vma_begin+vma->vma_length;
-	if (now->next && now->next->vma_begin < vma_end)
-		return -1;
-	if (now->vma_begin+now->vma_length > vma->vma_begin)
+	if (*now && (*now)->vma_begin < vma_end)
 		return -1;
 
-	if (now->next)
-		now->next->prev = &vma->next;
-	vma->next = now->next;
-	vma->prev = &now->next;
-	now->next = vma;
+	if (*now)
+		(*now)->prev = &vma->next;
+	vma->next = *now;
+	vma->prev = now;
+	*now = vma;
 	return 0;
 }
 
@@ -81,19 +89,25 @@ void kaddress_space_init(void *pml4, uint64_t last_addr, struct memory_range *rm
 	//Add a vma for kernel image
 	struct address_space *as = &kern_aspace;
 	aspace_init(as, pml4, 0);
+	kern_aspace.low_addr = KERN_VMBASE;
+	kern_aspace.high_addr = 0xfffffffffffff000ull;
+	printk("Initialzed kern_aspace\n");
 
 	struct vm_area *vma = obj_pool_alloc(as->vma_pool);
 	vma->page_size = 1;
 	vma->vma_flags = 0;
 	vma->vma_begin = (uint64_t)&kernbase;
+	vma->vma_length = 0x200000;
 	aspace_add_vma(as, vma);
+	printk("Inserted kernel image vma\n");
 
 	vma = obj_pool_alloc(as->vma_pool);
 	vma->page_size = 0;
 	vma->vma_flags = 0;
 	vma->vma_begin = KERN_VMBASE;
-	vma->vma_length = last_addr-KERN_VMBASE;
+	vma->vma_length = last_addr;
 	aspace_add_vma(as, vma);
+	printk("Inserted physical memory vma\n");
 
 	struct page *p = obj_pool_alloc(as->page_pool);
 	p->page_size = 1;
@@ -103,9 +117,12 @@ void kaddress_space_init(void *pml4, uint64_t last_addr, struct memory_range *rm
 	uint64_t i;
 	for (i = rm->base; i < rm->base+rm->length; i += 0x1000) {
 		struct page *p = obj_pool_alloc(as->page_pool);
+		p->page_size = 0;
 		p->phys_addr = i;
+		//printk("Addr mapping %p->%p\n", i+KERN_VMBASE, i);
 		binradix_insert(as->vaddr_map, i+KERN_VMBASE, p);
 	}
+	printk("Kaddress init done\n");
 }
 
 struct vm_area *aspace_vma_find_by_vaddr(struct address_space *as, uint64_t addr) {
@@ -123,10 +140,8 @@ struct vm_area *aspace_vma_find_by_vaddr(struct address_space *as, uint64_t addr
 static void
 address_space_map_with_vma(struct address_space *as, struct vm_area *cvma,
 			   uint64_t addr, uint64_t vaddr) {
-	uint64_t *pte = new_table(as->pml4, vaddr, cvma->page_size, 0);
-	uint64_t entry = pte_set_base(0, addr, cvma->page_size);
-	entry |= PTE_P;
-	*pte = entry;
+	int flags = vma_flags_to_page_flags(cvma->vma_flags);
+	map_page(addr, vaddr, cvma->page_size, flags);
 
 	struct page *p = obj_pool_alloc(as->page_pool);
 	p->phys_addr = addr;
@@ -152,10 +167,12 @@ address_space_get_physical(struct address_space *as, uint64_t vaddr) {
 }
 
 uint64_t kmmap_to_vmbase(uint64_t addr) {
+	printk("Mapping %p to vmbase\n", addr);
 	uint64_t vaddr = KERN_VMBASE+addr;
 	uint64_t phys = address_space_get_physical(&kern_aspace, vaddr);
 	if (!phys) {
 		//Not mapped
+		printk("Not mapped yet\n");
 		int ret = address_space_map(&kern_aspace, addr, vaddr);
 		if (ret < 0)
 			return ret;
@@ -171,7 +188,8 @@ static void do_map_range(struct address_space *as, struct vm_area *vma,
 
 }
 
-int mmap_to_vaddr(struct address_space *as, uint64_t addr, uint64_t vaddr, uint64_t length) {
+int mmap_to_vaddr(struct address_space *as, uint64_t addr, uint64_t vaddr,
+		  uint64_t length, int flags) {
 	struct vm_area *vma = obj_pool_alloc(as->vma_pool);
 	if ((addr & 0xfff) || (vaddr & 0xfff) || (length & 0xfff))
 		//address not aligned
@@ -179,7 +197,7 @@ int mmap_to_vaddr(struct address_space *as, uint64_t addr, uint64_t vaddr, uint6
 
 	vma->vma_begin = vaddr;
 	vma->vma_length = length;
-	vma->vma_flags = 0;
+	vma->vma_flags = flags;
 	vma->page_size = 0;
 
 	int ret = aspace_add_vma(&kern_aspace, vma);
@@ -192,7 +210,9 @@ int mmap_to_vaddr(struct address_space *as, uint64_t addr, uint64_t vaddr, uint6
 	return 0;
 }
 
-uint64_t mmap_to_any(struct address_space *as, uint64_t addr, uint64_t length) {
+uint64_t mmap_to_any(struct address_space *as, uint64_t addr,
+		     uint64_t length, int flags) {
+	printk("Mapping %p to any\n", addr);
 	struct vm_area *now = as->vma;
 	while(now) {
 		uint64_t now_end = now->vma_begin+now->vma_length;
@@ -210,7 +230,8 @@ uint64_t mmap_to_any(struct address_space *as, uint64_t addr, uint64_t length) {
 	nvma->vma_begin = now->vma_begin+now->vma_length;
 	nvma->vma_length = length;
 	nvma->page_size = 0;
-	nvma->vma_flags = 0;
+	nvma->vma_flags = flags;
+	printk("Target: %p\n", nvma->vma_begin);
 
 	if (!(as->as_flags&AS_LAZY))
 		do_map_range(as, nvma, addr);
@@ -218,12 +239,12 @@ uint64_t mmap_to_any(struct address_space *as, uint64_t addr, uint64_t length) {
 
 }
 
-int kmmap_to_vaddr(uint64_t addr, uint64_t vaddr, uint64_t length) {
-	return mmap_to_vaddr(&kern_aspace, addr, vaddr, length);
+int kmmap_to_vaddr(uint64_t addr, uint64_t vaddr, uint64_t length, int flags) {
+	return mmap_to_vaddr(&kern_aspace, addr, vaddr, length, flags);
 }
 
-uint64_t kmmap_to_any(uint64_t addr, uint64_t length) {
-	return mmap_to_any(&kern_aspace, addr, length);
+uint64_t kmmap_to_any(uint64_t addr, uint64_t length, int flags) {
+	return mmap_to_any(&kern_aspace, addr, length, flags);
 }
 
 uint64_t kphysical_lookup(uint64_t vaddr) {

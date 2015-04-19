@@ -18,7 +18,7 @@ static inline int hibit(uint64_t x) {
 	return __builtin_clzll(x);
 }
 
-static inline int bincmp(uint64_t a, uint64_t b, uint8_t off, uint8_t nbit) {
+static inline uint64_t bincmp(uint64_t a, uint64_t b, uint8_t off, uint8_t nbit) {
 	uint64_t x = a^b;
 	x &= (2ull<<off)-1;
 	if (off-nbit < 63)

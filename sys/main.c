@@ -28,6 +28,7 @@
 #include <sys/drivers/vga_text.h>
 #include <sys/drivers/kbd.h>
 #include <sys/drivers/serio.h>
+#include <sys/printk.h>
 #include <string.h>
 extern void timer_init(void);
 struct smap_t smap_buf[20];
@@ -39,7 +40,7 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	reload_gdt();
 	setup_tss();
 	serial_init();
-	printf("Serial test\n");
+	printk("Serial test\n");
 	i8259_init();
 	apic_init();
 	idt_init();
@@ -54,21 +55,21 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 
 	smap = smap_buf;
 	for(i = 0; i < smap_len; i++)
-		printf("Physical Memory [%x-%x] %s\n", smap[i].base,
+		printk("Physical Memory [%x-%x] %s\n", smap[i].base,
 		       smap[i].base+smap[i].length,
 		       smap[i].type == 1 ? "Available" : "Reserved");
-	printf("tarfs in [%p:%p]\n", &_binary_tarfs_start, &_binary_tarfs_end);
+	printk("tarfs in [%p:%p]\n", &_binary_tarfs_start, &_binary_tarfs_end);
 	vga_text_init();
 	timer_init();
 	kbd_init();
 
 	uint64_t p1, p2;
 	cpuid(0x80000001, &p1, &p2);
-	printf("1Gb page: %d\n", (p2>>26)&1);
+	printk("1Gb page: %d\n", (p2>>26)&1);
 
 	// kernel starts here
 	while(1)
-		//printf("%d\n", apic_read(0x390));
+		//printk("%d\n", apic_read(0x390));
 		__idle();
 
 }

@@ -16,7 +16,7 @@
 #include <string.h>
 #include <sys/kernaddr.h>
 #include <sys/drivers/vga_text.h>
-#include <sys/lib/printf.h>
+#include <sys/printk.h>
 
 int (*print_handler)(const char *);
 
@@ -69,8 +69,8 @@ int itoa(long a, int base, char *str, int width, int sign) {
 	return ret;
 }
 
-static char printf_buf[8192];
-int printf(const char *format, ...) {
+static char printk_buf[8192];
+int printk(const char *format, ...) {
 	va_list val;
 	int num;
 	size_t ptr;
@@ -79,7 +79,7 @@ int printf(const char *format, ...) {
 
 	//We don't have memory allocation yet
 	//So we just use as many memory as we like from kernend
-	char *pos = printf_buf;
+	char *pos = printk_buf;
 	va_start(val, format);
 	while(*format) {
 		if (*format == '%') {
@@ -124,5 +124,5 @@ int printf(const char *format, ...) {
 		format++;
 	}
 	*pos = 0;
-	return print_handler(printf_buf);
+	return print_handler(printk_buf);
 }

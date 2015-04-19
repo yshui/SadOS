@@ -16,7 +16,7 @@
 #include <sys/i8259.h>
 #include <sys/portio.h>
 #include <sys/defs.h>
-#include <stdio.h>
+#include <sys/printk.h>
 #include <sys/drivers/kbd.h>
 #include <sys/drivers/vga_text.h>
 
@@ -240,7 +240,7 @@ void kbd_handler(int v) {
 	while(x&1) {
 		uint8_t c = inb(0x60);
 		x = inb(0x64);
-		//printf("!!%x\n", c);
+		//printk("!!%x\n", c);
 		state_transition(c);
 	}
 }
@@ -256,7 +256,7 @@ void kbd_init(void) {
 	kbd_wait_output();
 	x = inb(0x60);
 	if (x != 0x55) {
-		printf("PS/2 Controller malfunctioning\n");
+		printk("PS/2 Controller malfunctioning\n");
 		return;
 	}
 
@@ -265,7 +265,7 @@ void kbd_init(void) {
 	kbd_wait_output();
 	x = inb(0x60);
 	if (x) {
-		printf("First PS/2 port malfunctioning\n");
+		printk("First PS/2 port malfunctioning\n");
 		return;
 	}
 
@@ -274,7 +274,7 @@ void kbd_init(void) {
 	kbd_wait_output();
 	x = inb(0x60);
 	if (!(x&1)) {
-		printf("Enabling first PS/2 port interrupt");
+		printk("Enabling first PS/2 port interrupt");
 		x |= 1;
 		outb(0x64, 0x60);
 		kbd_wait_input();

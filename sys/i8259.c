@@ -12,7 +12,7 @@
  *    University, unless the submitter is the copyright
  *    holder.
  */
-#include <stdio.h>
+#include <sys/printk.h>
 #include <sys/portio.h>
 #include <sys/defs.h>
 #include <sys/interrupt.h>
@@ -27,7 +27,7 @@ static inline void _i8259_eoi(unsigned char irq) {
 	}
 	io_wait();
 	outb(MASTER, 0x20);
-	//printf("EOI%d\n",irq);
+	//printk("EOI%d\n",irq);
 }
 
 void i8259_eoi(unsigned char irq) {

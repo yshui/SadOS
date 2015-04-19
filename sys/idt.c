@@ -16,7 +16,7 @@
 #include <sys/gdt.h>
 #include <sys/idt.h>
 #include <sys/interrupt.h>
-#include <stdio.h>
+#include <sys/printk.h>
 struct idtr_t {
 	uint16_t size;
 	uint64_t addr;
@@ -57,7 +57,7 @@ void idt_init(void) {
 
 void register_handler(uint16_t index, void *addr, uint8_t type) {
 	if (type != 0xE && type != 0xF) {
-		printf("Wrong interrupt type %x\n", type);
+		printk("Wrong interrupt type %x\n", type);
 		return;
 	}
 	struct igate ig = {0};
