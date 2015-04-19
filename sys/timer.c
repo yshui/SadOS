@@ -19,7 +19,7 @@
 #include <sys/portio.h>
 #include <sys/interrupt.h>
 #include <sys/i8259.h>
-#include <stdio.h>
+#include <sys/printk.h>
 extern char kernend;
 extern void timer_wrapper(void);
 extern int itoa(long a, int base, char *str, int width, int sign);
@@ -60,10 +60,10 @@ void timer_init(void) {
 	apic_write(0x380, 50000);
 	apic_write(0x3e0, 3); //Divider 16
 	apic_write(0x320, 200);
-	printf("XXX%d\n",apic_read(0x390));
+	printk("XXX%d\n",apic_read(0x390));
 	//Timer vector set to 200, TMM = oneshot, for calibration
 	start_pit = i8254_read();
-	printf("spit %d\n", start_pit);
+	printk("spit %d\n", start_pit);
 	calibrating = 1;
 #endif
 	enable_interrupts();
@@ -75,11 +75,11 @@ void timer_handler(void) {
 	if (calibrating) {
 		disable_interrupts();
 		uint16_t now_pit = i8254_read();
-		printf("%d\n", now_pit);
+		printk("%d\n", now_pit);
 		uint16_t diff = start_pit-now_pit;
 		//PIT frequency is 1193182HZ
 		uint32_t second = 59659100000l/(uint64_t)diff;
-		printf("APIC Timer is %d*16HZ, %d", second, diff);
+		printk("APIC Timer is %d*16HZ, %d", second, diff);
 		apic_write(0x380, second);
 		apic_write(0x320, 200 | (1<<17));
 		enable_interrupts();

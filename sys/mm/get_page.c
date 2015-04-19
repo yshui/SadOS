@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <sys/printk.h>
 #include <sys/mm.h>
 #include <sys/panic.h>
 
@@ -18,33 +18,52 @@ struct free_page {
 static struct free_page *head = NULL;
 static struct memory_range *usable_head = NULL;
 static struct obj_pool *mrng_pool = NULL;
+static int status = 0;
 
 void page_allocator_init_early(uint64_t extra_page, int count) {
 	if (count < 4)
 		panic("Not enough memory");
+	printk("Init allocator with %d pages\n", count);
 	int i;
 	for (i = 0; i < count; i++) {
-		struct free_page *fp = (void *)extra_page;
+		struct free_page *fp = (void *)(extra_page+i*0x1000);
 		fp->next = head;
 		head = fp;
 	}
 	//Take one page here
 	mrng_pool = obj_pool_create(sizeof(struct memory_range));
+	status = 1;
+	printk("Page allocator init early done\n");
 }
 
 void page_allocator_init(struct smap_t *smap, int nsmap, struct memory_range *rm) {
 	int i;
 	uint64_t rmend = rm->base+rm->length;
+	printk("RM %p-%p\n", rm->base, rmend);
 	for (i = 0; i < nsmap; i++) {
-		int base = smap[i].base, length = smap[i].length;
-		if (rm->base <= smap[i].base && smap[i].base < rmend) {
-			if (smap[i].base+smap[i].length <= rmend)
+		uint64_t base = smap[i].base, length = smap[i].length;
+		uint64_t end = base+length;
+		if (smap[i].type != 1)
+			continue;
+		if (rmend > smap[i].base && end > rm->base) {
+			if (rmend >= end && rm->base <= smap[i].base)
 				continue;
-			length -= (rmend-base);
-			base = rmend;
+			if (rmend >= end)
+				length = (rm->base-base);
+			else {
+				if (rm->base > base) {
+					struct memory_range *mr = obj_pool_alloc(mrng_pool);
+					mr->base = base;
+					mr->length = rm->base-base;
+					mr->next = usable_head;
+					usable_head = mr;
+					printk("Memory range %p-%p free to use\n", base, rm->base);
+				}
+				base = rmend;
+				length = end-base;
+			}
 		}
-
-		printf("Memory range %p-%p free to allocate\n", base, base+length);
+		printk("Memory range %p-%p free to use\n", base, base+length);
 
 		struct memory_range *mr = obj_pool_alloc(mrng_pool);
 		mr->base = base;
@@ -52,13 +71,19 @@ void page_allocator_init(struct smap_t *smap, int nsmap, struct memory_range *rm
 		mr->next = usable_head;
 		usable_head = mr;
 	}
+	status = 2;
 }
 
-void *get_page(void) {
+uint64_t get_phys_page(void) {
+	if (status == 1)
+		panic("Early get phys page");
 	if (head) {
 		void *ret = head;
 		head = head->next;
-		return ret;
+		uint64_t p = kphysical_lookup((uint64_t)ret);
+		if (!p)
+			panic("Page in free list not mapped??");
+		return p;
 	}
 
 	//No mapped free page, map a new one
@@ -68,7 +93,20 @@ void *get_page(void) {
 		obj_pool_free(mrng_pool, usable_head);
 		usable_head = n;
 	}
-	uint64_t ret = kmmap_to_vmbase(begin);
+	return begin;
+}
+
+void *get_page(void) {
+	if (status == 1)
+		printk("Early get page ");
+	if (head) {
+		void *ret = head;
+		head = head->next;
+		printk("get_page: %p\n", ret);
+		return ret;
+	}
+	uint64_t ret = kmmap_to_vmbase(get_phys_page());
+	printk("get_page: %p\n", ret);
 	return (void *)ret;
 }
 

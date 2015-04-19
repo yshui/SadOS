@@ -1,7 +1,7 @@
 #define COM1 0x3f8
 #include <sys/portio.h>
 #include <sys/defs.h>
-#include <sys/lib/printf.h>
+#include <sys/printk.h>
 static inline int is_transmit_empty(uint16_t port) {
    return inb(port + 5) & 0x20;
 }

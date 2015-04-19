@@ -17,7 +17,7 @@
 #include <sys/irq.h>
 #include <sys/i8259.h>
 
-#include <stdio.h>
+#include <sys/printk.h>
 
 extern uint64_t int_entry[];
 

@@ -14,7 +14,7 @@
  */
 #include <sys/defs.h>
 #include <sys/msr.h>
-#include <stdio.h>
+#include <sys/printk.h>
 
 //All pml4e is map to the same pdpe
 //pdpe[511] is map to the apic pde
