@@ -13,51 +13,63 @@
  */
 
 struct free_page {
-	uint64_t length;
 	struct free_page *next;
 };
 static struct free_page *head = NULL;
-void page_allocator_init(uint64_t vmbase, uint64_t end, struct memory_range *rm, int nrm) {
+static struct memory_range *usable_head = NULL;
+static struct obj_pool *mrng_pool = NULL;
+
+void page_allocator_init_early(uint64_t extra_page, int count) {
+	if (count < 4)
+		panic("Not enough memory");
 	int i;
-	uint64_t now = (vmbase+0xfff)&~0xfff;
-	for (i = 0; i < nrm; i++) {
-		if (rm[i].base < now)
-			panic("Invalid reserved memory range");
-		printf("Reserved range %p ~ %p\n", rm[i].base, rm[i].base+rm[i].length);
-		if (now+sizeof(struct free_page) >= rm[i].base) {
-			//The free_page header might overwrite a reserved range
-			now = rm[i].base+rm[i].length;
-			continue;
-		}
-		struct free_page *node = (void *)now;
-		node->next = head;
-		head = node;
-		node->length = (rm[i].base-now)&~0xfff; //Align to page boundary
-		now = (rm[i].base+rm[i].length+0xfff)&~0xfff; //Round up to page boundary
+	for (i = 0; i < count; i++) {
+		struct free_page *fp = (void *)extra_page;
+		fp->next = head;
+		head = fp;
 	}
-	if (end-now >= 0x1000) { //More than 1 page left
-		struct free_page *node = (void *)now;
-		node->next = head;
-		head = node;
-		node->length = (end-now)&~0xfff;
+	//Take one page here
+	mrng_pool = obj_pool_create(sizeof(struct memory_range));
+}
+
+void page_allocator_init(struct smap_t *smap, int nsmap, struct memory_range *rm) {
+	int i;
+	uint64_t rmend = rm->base+rm->length;
+	for (i = 0; i < nsmap; i++) {
+		int base = smap[i].base, length = smap[i].length;
+		if (rm->base <= smap[i].base && smap[i].base < rmend) {
+			if (smap[i].base+smap[i].length <= rmend)
+				continue;
+			length -= (rmend-base);
+			base = rmend;
+		}
+
+		printf("Memory range %p-%p free to allocate\n", base, base+length);
+
+		struct memory_range *mr = obj_pool_alloc(mrng_pool);
+		mr->base = base;
+		mr->length = length;
+		mr->next = usable_head;
+		usable_head = mr;
 	}
 }
 
 void *get_page(void) {
-	if (!head)
-		return NULL;
-	if (head->length == 0x1000) {
+	if (head) {
 		void *ret = head;
 		head = head->next;
 		return ret;
 	}
-	struct free_page *new = (void *)(((uint64_t)head)+0x1000);
-	new->length = head->length-0x1000;
-	new->next = head->next;
 
-	void *ret = head;
-	head = new;
-	return ret;
+	//No mapped free page, map a new one
+	uint64_t begin = usable_head->base;
+	if (usable_head->length == 0x1000) {
+		struct memory_range *n = usable_head->next;
+		obj_pool_free(mrng_pool, usable_head);
+		usable_head = n;
+	}
+	uint64_t ret = kmmap_to_vmbase(begin);
+	return (void *)ret;
 }
 
 void drop_page(void *pg) {
@@ -65,6 +77,5 @@ void drop_page(void *pg) {
 		panic("Dropping invalid page");
 	struct free_page *new = pg;
 	new->next = head;
-	new->length = 0x1000;
 	head = new;
 }

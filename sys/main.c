@@ -34,7 +34,6 @@ struct smap_t smap_buf[20];
 int ptsetup;
 _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	struct smap_t *smap;
-	uint64_t vmbase;
 	int i, smap_len;
 
 	reload_gdt();
@@ -50,7 +49,7 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	smap = (struct smap_t *)(modulep+2);
 	smap_len = modulep[1]/sizeof(struct smap_t);
 	memcpy(smap_buf, smap, smap_len*sizeof(struct smap_t));
-	vmbase = paging_init_early(smap_buf, smap_len);
+	memory_init(smap_buf, smap_len);
 	//get_page is usable from this point onwards.
 
 	smap = smap_buf;
@@ -59,7 +58,7 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 		       smap[i].base+smap[i].length,
 		       smap[i].type == 1 ? "Available" : "Reserved");
 	printf("tarfs in [%p:%p]\n", &_binary_tarfs_start, &_binary_tarfs_end);
-	vga_text_init(vmbase);
+	vga_text_init();
 	timer_init();
 	kbd_init();
 

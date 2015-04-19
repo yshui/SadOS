@@ -20,10 +20,23 @@
 #define AS_LAZY 0x1
 
 //Hardware reserved range
-#define VMA_RESERVED 0x1
+#define AS_KERNEL 0x1
 
 #define PAGE_SIZE (0x1000)
 #define KERN_VMBASE (0xffff800000000000ull) //Start address for whole physical page mapping
+#define KERN_TOP (0xfffffffffffff000ull)
+
+#define USER_BASE (0x400000ull)
+//Leave 1 page just in case
+#define USER_TOP (0x7ffffffffffff000ull)
+
+#define BIT(n) (1<<(n))
+
+#define PTE_P BIT(0)
+#define PTE_W BIT(1)
+#define PTE_U BIT(2)
+
+#define GET_BIT(a, n) (a&BIT(n))
 
 struct smap_t {
 	uint64_t base, length;
@@ -35,14 +48,43 @@ struct memory_range {
 	struct memory_range *next;
 };
 
-uint64_t make_virtual_addr_for_physical(uint64_t addr);
+struct address_space;
 
-void page_allocator_init(uint64_t, uint64_t, struct memory_range *, int nrm);
+extern struct address_space kern_aspace;
+
+void memory_init(struct smap_t *, int);
+uint64_t *new_table(uint64_t *, uint64_t, int, int);
+static inline uint64_t
+pte_set_base(uint64_t in, uint64_t base, int type) {
+	uint64_t clr = in & (~0xffffffffff000);
+	uint64_t sanitized_base = base&(~0xfff);
+	if (type == 1)
+		//2M page, last level entry
+		sanitized_base = sanitized_base & (~0x1fffff);
+	else if (type == 2)
+		//1G page, last level entry
+		sanitized_base = sanitized_base & (~0x3fffffff);
+	uint64_t out = clr | sanitized_base;
+
+	if (type)
+		//set bit 7
+		out |= (1<<7);
+	return out;
+}
+
+void page_allocator_init_early(uint64_t, int);
+void page_allocator_init(struct smap_t *, int, struct memory_range *);
 void *get_page();
 void drop_page(void *);
 
 struct obj_pool;
 
-struct obj_pool *obj_pool_new(uint64_t);
+struct obj_pool *obj_pool_create(uint64_t);
 void *obj_pool_alloc(struct obj_pool *);
 void obj_pool_free(struct obj_pool *, void *);
+
+void kaddress_space_init(void *, uint64_t, struct memory_range *);
+uint64_t kphysical_lookup(uint64_t);
+uint64_t kmmap_to_vmbase(uint64_t addr);
+int kmmap_to_vaddr(uint64_t addr, uint64_t vaddr, uint64_t length);
+uint64_t kmmap_to_any(uint64_t addr, uint64_t length);

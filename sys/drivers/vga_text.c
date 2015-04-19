@@ -15,6 +15,7 @@
 #include <sys/portio.h>
 #include <stdio.h>
 #include <sys/lib/printf.h>
+#include <sys/mm.h>
 #define R (25)
 #define C (80)
 #define VBASE ((uint8_t *)0xb8000)
@@ -26,9 +27,10 @@ static uint8_t *vbase = NULL;
 static uint8_t buffer[4096];
 static uint16_t offset;
 static int vga_puts(const char *);
-void vga_text_init(uint64_t vmbase) {
-	video_port = *(uint16_t *)(vmbase+0x463);
-	vbase = (void *)((uint64_t)VBASE+vmbase);
+void vga_text_init(void) {
+	uint8_t *video_info_base = (void *)kmmap_to_vmbase(0);
+	video_port = *(uint16_t *)(video_info_base+0x463);
+	vbase = (void *)kmmap_to_any((uint64_t)VBASE, (R*C*2+0xfff)&~0xfff);
 	uint8_t *v = vbase;
 	while(v-vbase <= R*C*2) {
 		*(v++) = 0;
