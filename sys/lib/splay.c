@@ -208,7 +208,7 @@ void *splay_find(struct splay *s, void *data) {
 }
 
 struct splay *splay_new(splay_cmp cmp) {
-	struct obj_pool *obp = obj_pool_new(sizeof(struct splay_node));
+	struct obj_pool *obp = obj_pool_create(sizeof(struct splay_node));
 	struct splay *ret = obj_pool_alloc(obp); //struct splay is smaller or equal to struct splay_node
 	ret->cmp = cmp;
 	ret->obp = obp;

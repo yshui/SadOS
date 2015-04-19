@@ -11,5 +11,4 @@ SECTIONS
 	.bss ALIGN(0x1000): { *(.bss) *(COMMON) }
 	.data : { *(.data) }
 	kernend = .;
-	physend = kernend - physoffset;
 }

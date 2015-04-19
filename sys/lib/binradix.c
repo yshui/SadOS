@@ -10,7 +10,7 @@ struct binradix_node {
 
 static inline void binradix_root_init(struct binradix_node *root) {
 	root->next[0] = root->next[1] = NULL;
-	root->data = obj_pool_new(sizeof(struct binradix_node));
+	root->data = obj_pool_create(sizeof(struct binradix_node));
 	root->len = 0;
 }
 
@@ -36,7 +36,6 @@ static inline int bineq(uint64_t a, uint64_t b, uint8_t off, uint8_t nbit) {
 
 void *binradix_find(struct binradix_node *root, uint64_t key) {
 	struct binradix_node *now = root;
-	uint64_t key_off_s = 1ull<<63;
 	uint8_t key_off = 63;
 	while (now) {
 		if (bineq(now->part, key, key_off, now->len)) {
@@ -141,7 +140,7 @@ void *binradix_delete(struct binradix_node *root, uint64_t key) {
 	return ret;
 }
 struct binradix_node *binradix_new(void) {
-	struct obj_pool *obp = obj_pool_new(sizeof(struct binradix_node));
+	struct obj_pool *obp = obj_pool_create(sizeof(struct binradix_node));
 	struct binradix_node *ret = obj_pool_alloc(obp);
 	ret->next[0] = ret->next[1] = NULL;
 	ret->data = obp;
