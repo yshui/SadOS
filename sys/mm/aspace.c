@@ -167,6 +167,7 @@ address_space_get_physical(struct address_space *as, uint64_t vaddr) {
 }
 
 uint64_t kmmap_to_vmbase(uint64_t addr) {
+	//Don't map memory range manged by page allocator!!
 	printk("Mapping %p to vmbase\n", addr);
 	uint64_t vaddr = KERN_VMBASE+addr;
 	uint64_t phys = address_space_get_physical(&kern_aspace, vaddr);
