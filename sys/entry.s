@@ -4,16 +4,12 @@
 # This work is open source software, licensed under the terms of the
 # BSD license as described in the BSD file in the license directory.
 
-
-.macro interrupt_entry name, handler, has_argument
-	.global \name
-	.type \name, @function
-	\name :
-	.if \has_argument == 0
-	pushq $0
-	.endif
+.macro push_all_register, has_argument
+	#push all register assuming one argument on stack
 	pushq %rdi
+	.if \has_argument == 1
 	movq 8(%rsp), %rdi #get the argument we pushed to stack
+	.endif
 	pushq %rax
 	pushq %rbx
 	pushq %rcx
@@ -29,7 +25,9 @@
 	pushq %r14
 	pushq %r15
 	pushq %rsp
-	call \handler
+.endm
+
+.macro pop_all_register
 	popq %rsp
 	popq %r15
 	popq %r14
@@ -46,6 +44,15 @@
 	popq %rbx
 	popq %rax
 	popq %rdi
+.endm
+
+.macro interrupt_entry name, handler, has_argument
+	.global \name
+	.type \name, @function
+	\name :
+	push_all_register \has_argument
+	call \handler
+	pop_all_register
 	add $8, %rsp
 	iretq
 .endm
@@ -60,5 +67,9 @@ vector = 32
     jmp int_entry_common
     vector = vector + 1
 .endr
+
+.global syscall_entry
+syscall_entry:
+	iretq
 
 interrupt_entry int_entry_common, int_handler, 1
