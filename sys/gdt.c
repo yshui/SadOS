@@ -13,6 +13,7 @@
  *    holder.
  */
 #include <sys/gdt.h>
+#include <sys/msr.h>
 
 /* adapted from Chris Stones, shovelos */
 
@@ -59,12 +60,13 @@ struct tss_t {
 struct tss_t tss;
 
 uint64_t gdt[MAX_GDT] = {
-	0,                      /*** NULL descriptor ***/
-	GDT_CS | P | DPL0 | L,  /*** kernel code segment descriptor ***/
-	GDT_DS | P | W | DPL0,  /*** kernel data segment descriptor ***/
-	GDT_CS | P | DPL3 | L,  /*** user code segment descriptor ***/
-	GDT_DS | P | W | DPL3,  /*** user data segment descriptor ***/
-	0, 0,                   /*** TSS ***/
+	0,                      /* NULL descriptor */
+	GDT_CS | P | DPL0 | L,  /* kernel code segment descriptor */
+	GDT_DS | P | W | DPL0,  /* kernel data segment descriptor */
+	0,                      /* padding */
+	GDT_DS | P | W | DPL3,  /* user data segment descriptor */
+	GDT_CS | P | DPL3 | L,  /* user code segment descriptor */
+	0, 0,                   /* TSS */
 };
 
 struct gdtr_t {
@@ -79,8 +81,19 @@ static struct gdtr_t gdtr = {
 
 void _x86_64_asm_lgdt(struct gdtr_t* gdtr, uint64_t cs_idx, uint64_t ds_idx);
 
+extern void syscall_entry(void);
 void reload_gdt() {
 	_x86_64_asm_lgdt(&gdtr, KERN_CS*8, KERN_DS*8);
+
+	//Set STAR, LSTAR
+	uint64_t star = (0x18ull<<48)|((KERN_CS*8ull)<<32);
+	wrmsr(0xc0000081, star);
+
+	uint64_t lstar = (uint64_t)syscall_entry;
+	wrmsr(0xc0000082, lstar);
+
+	uint64_t sfmask = 0xffffffff;
+	wrmsr(0xc0000084, sfmask);
 }
 
 static inline void load_tss(uint16_t idx) {
