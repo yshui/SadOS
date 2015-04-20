@@ -5,6 +5,7 @@
 #include <sys/kernaddr.h>
 #include <sys/panic.h>
 #include <sys/printk.h>
+#include <string.h>
 struct vm_area {
 	int vma_flags;
 	int page_size; //0 for 4k, 1 for 2M
@@ -77,12 +78,23 @@ static void aspace_init(struct address_space *ret, void *pml4, int flags) {
 	ret->as_flags = flags;
 }
 
-__attribute__((unused)) static struct address_space *aspace_new(void *pml4, int flags) {
+struct address_space *aspace_new(int flags) {
 	if (!aspace_pool)
 		aspace_pool = obj_pool_create(sizeof(struct address_space));
 	struct address_space *ret = obj_pool_alloc(aspace_pool);
+
+	void *pml4 = get_page();
 	aspace_init(ret, pml4, flags);
 	return ret;
+}
+
+void switch_address_space(struct address_space *now, struct address_space *next) {
+	//Copy the top half address space
+	memcpy(kern_aspace.pml4+256, now->pml4+256, 2048);
+	memcpy(next->pml4+256, kern_aspace.pml4+256, 2048);
+
+	uint64_t cr3 = kphysical_lookup((uint64_t)next->pml4);
+	__asm__ volatile ("movq %0, %%cr3" : : "r"(cr3));
 }
 
 void kaddress_space_init(void *pml4, uint64_t last_addr, struct memory_range *rm) {
@@ -251,4 +263,11 @@ uint64_t kmmap_to_any(uint64_t addr, uint64_t length, int flags) {
 uint64_t kphysical_lookup(uint64_t vaddr) {
 	uint64_t phys = address_space_get_physical(&kern_aspace, vaddr);
 	return phys;
+}
+uint64_t kvirtual_lookup(uint64_t addr) {
+	uint64_t vaddr = KERN_VMBASE+addr;
+	uint64_t phys = address_space_get_physical(&kern_aspace, vaddr);
+	if (phys != addr)
+		return 0;
+	return vaddr;
 }

@@ -17,6 +17,7 @@
 #include <sys/idt.h>
 #include <sys/interrupt.h>
 #include <sys/printk.h>
+#include <string.h>
 struct idtr_t {
 	uint16_t size;
 	uint64_t addr;
@@ -71,6 +72,5 @@ void register_handler(uint16_t index, void *addr, uint8_t type) {
 	ig.present = 1;
 	ig.hiaddr = ((uint64_t)addr)>>16;
 	ig.reserved1 = 0;
-	idt[index] = *(uint64_t *)&ig;
-	idt[index+1] = *(((uint64_t *)&ig)+1);
+	memcpy(idt+index, &ig, sizeof(uint64_t)*2);
 }

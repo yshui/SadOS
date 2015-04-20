@@ -14,6 +14,8 @@
  */
 #pragma once
 #include <sys/defs.h>
+#include <compiler.h>
+
 static inline void outb(uint16_t port, uint8_t d) {
 	__asm__ volatile (
 		"outb %%al, %%dx"

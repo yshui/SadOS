@@ -19,20 +19,6 @@
 #include <string.h>
 #include <sys/panic.h>
 
-static inline uint64_t
-pte_get_base(uint64_t in) {
-	return in&0xffffffffff000;
-}
-
-static inline uint64_t
-pte_set_flags(uint64_t in, int flags) {
-	//flags take up lower 12 bits
-	flags &= 0xfff;
-	in &= ~0xfff;
-	in |= flags;
-	return in;
-}
-
 static uint64_t endaddr = 0;
 static uint64_t get_phys_page_early(void) {
 	uint64_t tmp = endaddr;
@@ -40,7 +26,7 @@ static uint64_t get_phys_page_early(void) {
 	return (tmp-(uint64_t)&physoffset);
 }
 
-static uint64_t *get_pte_addr(uint64_t addr, int level) {
+uint64_t *get_pte_addr(uint64_t addr, int level) {
 	int i;
 	uint64_t res = 0;
 	addr&=0xffffffffffffull;
@@ -57,12 +43,15 @@ static uint64_t *get_pte_addr(uint64_t addr, int level) {
 	return (void *)res;
 }
 
-static void _map_page(uint64_t addr, uint64_t vaddr,
-		      int pgsize, int flags, uint64_t (*gpp)(void)) {
+static uint64_t *
+get_pte_addr_checked(uint64_t vaddr, int pgsize, int flags,
+		     uint64_t (*gpp)(void), int create) {
 	int i;
 	for (i = 0; i < 3-pgsize; i++) {
 		uint64_t *pte = get_pte_addr(vaddr, i);
 		if (!(*pte & PTE_P)) {
+			if (!create)
+				return NULL;
 			uint64_t entry = pte_set_base(0, gpp(), 0);
 			entry = pte_set_flags(entry, flags);
 			entry |= PTE_P;
@@ -74,12 +63,25 @@ static void _map_page(uint64_t addr, uint64_t vaddr,
 		}
 	}
 	uint64_t *pte = get_pte_addr(vaddr, 3-pgsize);
+	return pte;
+}
+static void _map_page(uint64_t addr, uint64_t vaddr, int pgsize,
+		      int flags, uint64_t (*gpp)(void)) {
+	uint64_t *pte = get_pte_addr_checked(vaddr, pgsize, flags, gpp, 1);
 	if (*pte & PTE_P)
 		panic("mapping an already mapped page");
 	uint64_t entry = pte_set_base(0, addr, pgsize);
 	entry = pte_set_flags(entry, flags);
 	entry |= PTE_P;
 	*pte = entry;
+}
+
+void unmap(uint64_t vaddr) {
+	uint64_t *pte = get_pte_addr_checked(vaddr, 0, 0, NULL, 0);
+	if (!pte)
+		return;
+	*pte = 0;
+	invlpg(vaddr);
 }
 
 static void map_4k_early(uint64_t addr, uint64_t vaddr) {
@@ -153,7 +155,7 @@ void memory_init(struct smap_t *smap, int smap_len) {
 	uint64_t extra_page = endaddr-(uint64_t)&physoffset+KERN_VMBASE;
 	int npage = (physend+0x10000+KERN_VMBASE-extra_page)>>12;
 
-	uint64_t last_addr;
+	uint64_t last_addr = 0;
 	for (i = 0; i < smap_len; i++) {
 		if (smap[i].type != 1)
 			continue;

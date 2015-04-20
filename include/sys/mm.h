@@ -14,6 +14,7 @@
  */
 #pragma once
 #include <sys/defs.h>
+#include <compiler.h>
 
 //Mappings are not immediately reflected in page table
 //Don't use for kernel address space
@@ -53,6 +54,7 @@ extern struct address_space kern_aspace;
 
 void memory_init(struct smap_t *, int);
 void map_page(uint64_t, uint64_t, int, int);
+uint64_t *get_pte_addr(uint64_t addr, int level);
 static inline uint64_t
 pte_set_base(uint64_t in, uint64_t base, int type) {
 	uint64_t clr = in & (~0xffffffffff000);
@@ -71,6 +73,24 @@ pte_set_base(uint64_t in, uint64_t base, int type) {
 	return out;
 }
 
+static inline uint64_t
+pte_get_base(uint64_t in) {
+	return in&0xffffffffff000;
+}
+
+static inline uint64_t
+pte_set_flags(uint64_t in, int flags) {
+	//flags take up lower 12 bits
+	flags &= 0xfff;
+	in &= ~0xfff;
+	in |= flags;
+	return in;
+}
+
+static inline  void invlpg(uint64_t m) {
+	__asm__ volatile ("invlpg (%0)" : : "r"(m) : "memory");
+}
+
 void page_allocator_init_early(uint64_t, int);
 void page_allocator_init(struct smap_t *, int, struct memory_range *);
 void *get_page();
@@ -85,6 +105,7 @@ void obj_pool_free(struct obj_pool *, void *);
 
 void kaddress_space_init(void *, uint64_t, struct memory_range *);
 uint64_t kphysical_lookup(uint64_t);
+uint64_t kvirtual_lookup(uint64_t);
 uint64_t kmmap_to_vmbase(uint64_t addr);
 int kmmap_to_vaddr(uint64_t addr, uint64_t vaddr, uint64_t length, int flags);
 uint64_t kmmap_to_any(uint64_t addr, uint64_t length, int flags);
