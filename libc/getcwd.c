@@ -31,7 +31,7 @@ char *getcwd(char *buf, size_t size)
 		return NULL;
 	}
 
-	int64_t ret = syscall_2(SYS_getcwd, (uint64_t)buf, size);
+	int64_t ret = syscall_2(NR_getcwd, (uint64_t)buf, size);
 	if (ret < 0) {
 		errno = -ret;
 		return NULL;

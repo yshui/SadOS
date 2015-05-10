@@ -14,22 +14,25 @@
  */
 #include <sys/defs.h>
 #include <sys/idt.h>
-#include <sys/irq.h>
+#include <sys/interrupt.h>
 #include <sys/i8259.h>
 
 #include <sys/printk.h>
 
 extern uint64_t int_entry[];
+int interrupt_disabled = 0;
 
 handler_t htable[224];
 handler_t eoitable[256];
 
-void int_handler(uint64_t vector) {
+uint64_t int_handler(uint64_t vector) {
 	handler_t fn = htable[vector-32];
+	uint64_t ret = 0;
 	if (fn)
-		fn(vector);
+		ret = fn(vector);
 	if (eoitable[vector])
 		eoitable[vector](vector);
+	return ret;
 }
 
 int int_register_eoi(uint64_t vector, handler_t fn) {

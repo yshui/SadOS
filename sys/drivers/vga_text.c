@@ -18,7 +18,7 @@
 #include <sys/mm.h>
 #define R (25)
 #define C (80)
-#define VBASE ((uint8_t *)0xb8000)
+#define VBASE (0xb8000)
 #define VBUF_SIZE sizeof(buffer)
 static uint16_t video_port = 0;
 static uint8_t pos_x, pos_y;
@@ -31,14 +31,15 @@ void vga_text_init(void) {
 	uint8_t *video_info_base = (void *)KERN_VMBASE;
 	video_port = *(uint16_t *)(video_info_base+0x463);
 	printk("%x\n", video_port);
-	vbase = (void *)kmmap_to_any((uint64_t)VBASE, (R*C*2+0xfff)&~0xfff, VMA_RW);
+	map_range(VBASE, VBASE+KERN_VMBASE, (R*C*2+0xfff)&~0xfff, 0, PTE_W);
+	vbase = (uint8_t *)(VBASE+KERN_VMBASE);
 	voff = vbase;
 	uint8_t *v = vbase;
 	while(v-vbase <= R*C*2) {
 		*(v++) = 0;
 		*(v++) = 0x07;
 	}
-	print_handler = vga_puts;
+//	print_handler = vga_puts;
 }
 
 void set_cursor(void) {
@@ -85,7 +86,7 @@ void line_feed(void) {
 	set_cursor();
 }
 
-static int vga_puts(const char *str) {
+__attribute__((unused)) static int vga_puts(const char *str) {
 	int c = 0;
 	while(*str) {
 		switch(*str) {

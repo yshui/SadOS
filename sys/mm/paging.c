@@ -39,7 +39,7 @@ uint64_t *get_pte_addr(uint64_t addr, int level) {
 	else
 		addr <<= 3;
 	res |= addr&~0x7;
-	res |= (0xffff000000000000ull); //sidn extension
+	res |= (0xffff000000000000ull); //sign extension
 	return (void *)res;
 }
 
@@ -54,12 +54,15 @@ get_pte_addr_checked(uint64_t vaddr, int pgsize, int flags,
 				return NULL;
 			uint64_t entry = pte_set_base(0, gpp(), 0);
 			entry = pte_set_flags(entry, flags);
-			entry |= PTE_P;
+			entry |= PTE_P|PTE_W;
 			*pte = entry;
 			//clear next level page
 			pte = get_pte_addr(vaddr, i+1);
 			pte = (void *)((uint64_t)pte&~0xfff);
 			memset(pte, 0, 0x1000);
+		} else if (i!=3 && (*pte & BIT(7))) {
+			printk("Mapping an already mapped page %p, %d\n", vaddr, 3-i);
+			panic("Xx");
 		}
 	}
 	uint64_t *pte = get_pte_addr(vaddr, 3-pgsize);
@@ -91,6 +94,15 @@ static void map_4k_early(uint64_t addr, uint64_t vaddr) {
 void map_page(uint64_t addr, uint64_t vaddr, int pgsize, int flags) {
 	printk("%p->%p\n", vaddr, addr);
 	_map_page(addr, vaddr, pgsize, flags, get_phys_page);
+}
+
+void map_range(uint64_t addr, uint64_t vaddr, uint64_t len, int pgsize, int flags) {
+	int size=PAGE_SIZE<<(9*pgsize);
+	if (len&(size-1) || addr&(size-1) || vaddr&(size-1))
+		panic("Invalid args in map_range");
+	int i;
+	for (i=0; i<len; i+=size)
+		map_page(addr+i, vaddr+i, pgsize, flags);
 }
 
 void memory_init(struct smap_t *smap, int smap_len) {
@@ -167,7 +179,8 @@ void memory_init(struct smap_t *smap, int smap_len) {
 	struct memory_range rm;
 	rm.base = ((uint64_t)&physbase)&~0xfff;
 	rm.length = physend+0x10000-rm.base;
-	page_allocator_init_early(extra_page, npage);
-	kaddress_space_init(pml4, last_addr, &rm);
-	page_allocator_init(smap, smap_len, &rm);
+	page_allocator_init(extra_page, npage, smap, smap_len, &rm);
+	address_space_init();
+	page_man_init();
+	page_fault_init();
 }

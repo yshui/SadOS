@@ -17,34 +17,6 @@
 #include "err.h"
 #include "simple_syscalls.h"
 
-#define syscall_ret(ret, rett) if (ISERR(ret)) { \
-	errno = -ret; \
-	return -1; \
-} \
-return (rett)ret;
-
-#define sys0(name, rett) rett name(void) { \
-	uint64_t ret = syscall_0(SYS_##name); \
-	syscall_ret(ret, rett) \
-}
-
-#define sys1(name, type1, rett) rett name(type1 a1) { \
-	uint64_t ret = syscall_1(SYS_##name, (uint64_t)a1); \
-	syscall_ret(ret, rett) \
-}
-
-#define sys2(name, type1, type2, rett) rett name(type1 a1, type2 a2) { \
-	uint64_t ret = syscall_2(SYS_##name, (uint64_t)a1, \
-			      (uint64_t)a2); \
-	syscall_ret(ret, rett) \
-}
-
-#define sys3(name, type1, type2, type3, rett) \
-rett name(type1 a1, type2 a2, type3 a3) { \
-	uint64_t ret = syscall_3(SYS_##name, (uint64_t)a1, \
-			      (uint64_t)a2, (uint64_t)a3); \
-	syscall_ret(ret, rett) \
-}
 
 static __inline uint64_t
 syscall_4(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4) {
@@ -57,14 +29,14 @@ syscall_4(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4) {
 
 #define sys4(name, type1, type2, type3, type4, rett) \
 rett name(type1 a1, type2 a2, type3 a3, type4 a4) { \
-	uint64_t ret = syscall_4(SYS_##name, (uint64_t)a1, \
+	uint64_t ret = syscall_4(NR_##name, (uint64_t)a1, \
 			 (uint64_t)a2, (uint64_t)a3, \
 			 (uint64_t)a4); \
 	syscall_ret(ret, rett) \
 }
 
 _Noreturn void exit(int status) {
-	syscall_1(SYS_exit, (uint64_t)status);
+	syscall_1(NR_exit, (uint64_t)status);
 	__builtin_unreachable();
 }
 sys2(open, const char *, int, int)
@@ -84,7 +56,6 @@ sys1(chdir, const char *, int)
 sys1(alarm, unsigned int, unsigned int)
 sys2(nanosleep, const struct timespec *, struct timespec *, int)
 sys3(getdents, unsigned int, struct linux_dirent *, unsigned int, int)
-
 #if 0
 static __inline uint64_t
 syscall_6(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,

@@ -10,5 +10,15 @@ SECTIONS
 	.got ALIGN(0x1000): { *(.got) *(.got.plt) }
 	.bss ALIGN(0x1000): { *(.bss) *(COMMON) }
 	.data : { *(.data) }
+	.syscalls_metadata : {
+		syscall_meta_table = .;
+		*(__syscalls_metadata)
+		syscall_meta_end = .;
+	}
+	.services : {
+		services_init_table = .;
+		*(__services)
+		services_init_end = .;
+	}
 	kernend = .;
 }

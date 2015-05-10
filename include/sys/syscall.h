@@ -12,31 +12,59 @@
  *    University, unless the submitter is the copyright
  *    holder.
  */
-#ifndef __SYS_SYSCALL_H
-#define __SYS_SYSCALL_H
+#pragma once
+#include <sys/defs.h>
 
-#define SYS_read        0
-#define SYS_write       1
-#define SYS_open        2
-#define SYS_close       3
-#define SYS_lseek       8
-//#define SYS_mmap        9
-//#define SYS_mprotect   10
-//#define SYS_munmap     11
-#define SYS_brk        12
-#define SYS_pipe       22
-#define SYS_dup        32
-#define SYS_dup2       33
-#define SYS_nanosleep  35
-#define SYS_alarm      37
-#define SYS_getpid     39
-#define SYS_fork       57
-#define SYS_execve     59
-#define SYS_exit       60
-#define SYS_wait4      61
-#define SYS_getdents   78
-#define SYS_getcwd     79
-#define SYS_chdir      80
-#define SYS_getppid   110
+#define NR_open_port    0
+#define NR_get_response 1
+#define NR_request      2
+#define NR_port_connect      3
 
-#endif
+struct syscall_metadata {
+	void *ptr;
+	uint32_t syscall_nr;
+};
+#define __MAP0(m,...)
+#define __MAP1(m,t,a) m(t,a)
+#define __MAP2(m,t,a,...) m(t,a), __MAP1(m,__VA_ARGS__)
+#define __MAP3(m,t,a,...) m(t,a), __MAP2(m,__VA_ARGS__)
+#define __MAP4(m,t,a,...) m(t,a), __MAP3(m,__VA_ARGS__)
+#define __MAP5(m,t,a,...) m(t,a), __MAP4(m,__VA_ARGS__)
+#define __MAP6(m,t,a,...) m(t,a), __MAP5(m,__VA_ARGS__)
+#define __MAP(n,...) __MAP##n(__VA_ARGS__)
+
+#define __ARG_DECL(t, a) t a
+
+#define SYSCALL(nargs, x, ...) \
+	long sys_##x(__MAP(nargs, __ARG_DECL, __VA_ARGS__)); \
+	static struct syscall_metadata \
+	__attribute__ ((section("__syscalls_metadata"), used)) \
+	__syscall_meta_##x = { \
+		.syscall_nr = NR_##x, \
+		.ptr = sys_##x, \
+	}; \
+	long sys_##x(__MAP(nargs, __ARG_DECL, __VA_ARGS__))
+
+#define NR_read        0
+#define NR_write       1
+#define NR_open        2
+#define NR_close       3
+#define NR_lseek       8
+//#define NR_mmap        9
+//#define NR_mprotect   10
+//#define NR_munmap     11
+#define NR_brk        12
+#define NR_pipe       22
+#define NR_dup        32
+#define NR_dup2       33
+#define NR_nanosleep  35
+#define NR_alarm      37
+#define NR_getpid     39
+#define NR_fork       57
+#define NR_execve     59
+#define NR_exit       60
+#define NR_wait4      61
+#define NR_getdents   78
+#define NR_getcwd     79
+#define NR_chdir      80
+#define NR_getppid   110

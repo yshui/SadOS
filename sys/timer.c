@@ -34,7 +34,7 @@ static inline uint16_t i8254_read(void) {
 	return (h<<8)+l;
 }
 
-void pit_handler(int v) {
+uint64_t pit_handler(int v) {
 	static volatile uint32_t count = 0;
 	count++;
 	if (count % 41 == 0) {
@@ -43,6 +43,7 @@ void pit_handler(int v) {
 		int len = itoa(count/41, 10, str, 0, 0);
 		vga_puts_at(str, 24, 80-len, 7);
 	}
+	return 0;
 }
 extern void pit_wrapper(void);
 void timer_init(void) {
@@ -56,7 +57,7 @@ void timer_init(void) {
 	int_register_handler(32, pit_handler);
 #if 0
 	apic_write(0x320, 1<<16);
-	register_handler(200*2, timer_wrapper, 0xE);
+	register_handler(200, timer_wrapper, 0xE);
 	apic_write(0x380, 50000);
 	apic_write(0x3e0, 3); //Divider 16
 	apic_write(0x320, 200);

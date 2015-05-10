@@ -1,6 +1,7 @@
 #include <sys/defs.h>
 #include <sys/mm.h>
 #include <sys/panic.h>
+#include <sys/interrupt.h>
 //Allocator for fixed size objects
 struct free_obj {
 	struct free_obj *next;
@@ -19,6 +20,8 @@ struct obj_pool {
 	.obj_size = sizeof(struct obj_pool),
 };
 
+extern int early_address_space;
+
 void *obj_pool_alloc(struct obj_pool *obp) {
 	if (obp->free_list) {
 		void *ret = (void *)obp->free_list;
@@ -26,7 +29,8 @@ void *obj_pool_alloc(struct obj_pool *obp) {
 		return ret;
 	}
 	if (obp->page_free < obp->obj_size) {
-		struct page_list *page_header = get_page();
+		void *page = get_page();
+		struct page_list *page_header = page;
 		page_header->next = obp->page_head;
 		obp->page_head = page_header;
 		obp->free_page = page_header+1;
@@ -52,7 +56,9 @@ void obj_pool_free(struct obj_pool *obp, void *obj) {
 struct obj_pool *obj_pool_create(uint64_t size) {
 	if (size < sizeof(struct free_obj) || size > PAGE_SIZE)
 		panic("Invalid object size");
+	disable_interrupts();
 	struct obj_pool *obp = obj_pool_alloc(&meta_obj_pool);
+	enable_interrupts();
 	obp->free_page = NULL;
 	obp->free_list = NULL;
 	obp->page_free = 0;
@@ -67,7 +73,9 @@ void obj_pool_destroy(struct obj_pool *obp) {
 		drop_page(ph);
 		ph = next;
 	}
+	disable_interrupts();
 	obj_pool_free(&meta_obj_pool, obp);
+	enable_interrupts();
 }
 
 int obj_pool_size_eq(struct obj_pool *obp, uint64_t size) {

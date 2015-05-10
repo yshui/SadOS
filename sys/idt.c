@@ -17,7 +17,9 @@
 #include <sys/idt.h>
 #include <sys/interrupt.h>
 #include <sys/printk.h>
+#include <bitops.h>
 #include <string.h>
+extern int interrupt_disabled;
 struct idtr_t {
 	uint16_t size;
 	uint64_t addr;
@@ -51,12 +53,23 @@ extern uint64_t int_entry[];
 void idt_init(void) {
 	int i;
 	for (i = 32; i < 256; i++)
-		register_handler(i*2, int_entry+(i-32)*2, 0xE);
+		//Register IRQs
+		register_handler(i, int_entry+(i-32)*2, 0xE, 0);
 	load_idt(&idtr);
-	enable_interrupts();
+
+	__asm__ volatile ("cli");
+	uint64_t rflags;
+	__asm__ volatile ("\tpushfq\n"
+			  "\tpopq %0\n" : "=r"(rflags) : : );
+	printk("%p\n", rflags);
+	if (GET_BIT(rflags, 9))
+		interrupt_disabled = 0;
+	else
+		interrupt_disabled = 1;
+	printk("Start IF: %d\n", interrupt_disabled);
 }
 
-void register_handler(uint16_t index, void *addr, uint8_t type) {
+void register_handler(uint16_t index, void *addr, uint8_t type, int ist) {
 	if (type != 0xE && type != 0xF) {
 		printk("Wrong interrupt type %x\n", type);
 		return;
@@ -64,7 +77,7 @@ void register_handler(uint16_t index, void *addr, uint8_t type) {
 	struct igate ig = {0};
 	ig.loaddr = ((uint64_t)addr)&(0xffff);
 	ig.cs = KERN_CS*8;
-	ig.ist = 0;
+	ig.ist = ist;
 	ig.reserved0 = 0;
 	ig.type = type;
 	ig.zero = 0;
@@ -72,5 +85,5 @@ void register_handler(uint16_t index, void *addr, uint8_t type) {
 	ig.present = 1;
 	ig.hiaddr = ((uint64_t)addr)>>16;
 	ig.reserved1 = 0;
-	memcpy(idt+index, &ig, sizeof(uint64_t)*2);
+	memcpy(idt+(index*2), &ig, sizeof(uint64_t)*2);
 }

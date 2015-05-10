@@ -14,7 +14,38 @@
  */
 #pragma once
 #include <stdlib.h>
+#include "err.h"
 #include "time.h"
+
+#define syscall_ret(ret, rett) if (ISERR(ret)) { \
+	errno = -ret; \
+	return -1; \
+} \
+return (rett)ret;
+
+#define sys0(name, rett) rett name(void) { \
+	uint64_t ret = syscall_0(NR_##name); \
+	syscall_ret(ret, rett) \
+}
+
+#define sys1(name, type1, rett) rett name(type1 a1) { \
+	uint64_t ret = syscall_1(NR_##name, (uint64_t)a1); \
+	syscall_ret(ret, rett) \
+}
+
+#define sys2(name, type1, type2, rett) rett name(type1 a1, type2 a2) { \
+	uint64_t ret = syscall_2(NR_##name, (uint64_t)a1, \
+			      (uint64_t)a2); \
+	syscall_ret(ret, rett) \
+}
+
+#define sys3(name, type1, type2, type3, rett) \
+rett name(type1 a1, type2 a2, type3 a3) { \
+	uint64_t ret = syscall_3(NR_##name, (uint64_t)a1, \
+			      (uint64_t)a2, (uint64_t)a3); \
+	syscall_ret(ret, rett) \
+}
+
 struct linux_dirent;
 pid_t wait4(pid_t, int *, int, void *);
 int nanosleep(const struct timespec *req, struct timespec *rem);

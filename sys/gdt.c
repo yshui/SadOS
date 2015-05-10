@@ -50,8 +50,7 @@ struct sys_segment_descriptor {
 struct tss_t {
 	uint32_t reserved0;
 	uint64_t rsp[3];
-	uint64_t reserved1;
-	uint64_t ist[8];
+	uint64_t ist[8]; //ist[0] must be 0
 	uint64_t reserved2;
 	uint16_t reserved3;
 	uint16_t iobase;
@@ -86,7 +85,7 @@ void reload_gdt() {
 	_x86_64_asm_lgdt(&gdtr, KERN_CS*8, KERN_DS*8);
 
 	//Set STAR, LSTAR
-	uint64_t star = (0x18ull<<48)|((KERN_CS*8ull)<<32);
+	uint64_t star = (0x18ull<<48)|((KERN_CS*8ull)<<32); //0x1b is 0x18|3, USER_CS-0x10|RPL=3
 	wrmsr(0xc0000081, star);
 
 	uint64_t lstar = (uint64_t)syscall_entry;
@@ -100,10 +99,12 @@ static inline void load_tss(uint16_t idx) {
 	__asm__ volatile ("ltr %0" : : "r"(idx));
 }
 
-extern char stack[];
+#define STACK_SIZE 4096
+char stack[STACK_SIZE];
+char estack[STACK_SIZE];
 
 void setup_tss() {
-	struct sys_segment_descriptor* sd = (struct sys_segment_descriptor*)&gdt[5]; // 6th&7th entry in GDT
+	struct sys_segment_descriptor* sd = (struct sys_segment_descriptor*)&gdt[6]; // 7th&8th entry in GDT
 	sd->sd_lolimit = sizeof(struct tss_t);
 	sd->sd_lobase = ((uint64_t)&tss)&0xffffff;
 	sd->sd_type = 9; // 386 TSS
@@ -113,8 +114,9 @@ void setup_tss() {
 	sd->sd_gran = 0;
 	sd->sd_hibase = ((uint64_t)&tss) >> 24;
 
-	//Put a rsp in ist as well, just in case
-	tss.rsp[0] = (uint64_t)((char *)stack+4096);
-	tss.ist[0] = (uint64_t)((char *)stack+4096);
-	load_tss(40);
+	//Put a rsp in tss.rsp as well, just in case
+	tss.rsp[0] = (uint64_t)(stack+STACK_SIZE); //Interrupt stack
+	tss.ist[0] = 0;
+	tss.ist[1] = (uint64_t)(estack+STACK_SIZE); //Exception stack
+	load_tss(48);
 }

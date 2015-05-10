@@ -34,8 +34,9 @@ void i8259_eoi(unsigned char irq) {
 	_i8259_eoi(irq);
 }
 
-void i8259_int_eoi(int v) {
+uint64_t i8259_int_eoi(int v) {
 	_i8259_eoi(v-32);
+	return 0;
 }
 
 void i8259_init(void) {
