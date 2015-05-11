@@ -26,4 +26,9 @@ struct posix_header_ustar {
 	char pad[12];
 };
 
+void tarfs_init();
+void ls_tarfs();
+struct file* tarfs_open(const char* pathname, int flags);
+int tarfs_read(struct file *fd, void *buf, int count);
+
 #endif

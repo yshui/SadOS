@@ -30,10 +30,15 @@
 #include <sys/drivers/serio.h>
 #include <sys/printk.h>
 #include <string.h>
+#include <sys/tarfs.h>
+#include <sys/ahci.h>
+#include <vfs.h>
+char buf[20000] = {0};
+
 extern void timer_init(void);
 struct smap_t smap_buf[20];
 int ptsetup;
-_Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
+void start(uint32_t* modulep, void* physbase, void* physfree) {
 	struct smap_t *smap;
 	int i, smap_len;
 
@@ -66,6 +71,15 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	uint64_t p1, p2;
 	cpuid(0x80000001, &p1, &p2);
 	printk("1Gb page: %d\n", (p2>>26)&1);
+    tarfs_init();
+    //ls_tarfs("/bin");
+    //struct file* fd = tarfs_open("/test/x", 0);
+    //printk("file len: %d\n", fd -> inode -> file_len);
+    //while (tarfs_read(fd, buf, 20) != 0)
+        //printk("%s", buf);
+    uint64_t bar5 = checkAllBuses();
+    printk("check bus done: %x\n", bar5);
+    //probe_port((HBA_MEM*) (bar5));
 
 	// kernel starts here
 	while(1)
@@ -78,7 +92,7 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 char stack[INITIAL_STACK_SIZE];
 uint32_t* loader_stack;
 
-_Noreturn void real_boot(void)
+void real_boot(void)
 {
 	start(
 		(uint32_t*)((char*)(uint64_t)loader_stack[1] + (uint64_t)&kernbase - (uint64_t)&physbase),
