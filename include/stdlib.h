@@ -30,6 +30,8 @@ unsigned int alarm(unsigned int seconds);
 // paths
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path);
+char *new_getcwd(char *buf, size_t size);
+int new_chdir(const char *path);
 
 // files
 typedef int64_t ssize_t;

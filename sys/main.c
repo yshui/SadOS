@@ -36,6 +36,11 @@
 #include <sys/tar.h>
 #include <sys/service.h>
 #include <string.h>
+#include <sys/tarfs.h>
+#include <sys/ahci.h>
+#include <vfs.h>
+char buf[20000] = {0};
+
 extern void timer_init(void);
 struct smap_t smap_buf[20];
 int ptsetup;
@@ -194,6 +199,15 @@ __noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	//kbd_init();
 	current = idle_task();
 	enable_interrupts();
+    tarfs_init();
+    //ls_tarfs("/bin");
+    //struct file* fd = tarfs_open("/test/x", 0);
+    //printk("file len: %d\n", fd -> inode -> file_len);
+    //while (tarfs_read(fd, buf, 20) != 0)
+        //printk("%s", buf);
+    uint64_t bar5 = checkAllBuses();
+    printk("check bus done: %x\n", bar5);
+    //probe_port((HBA_MEM*) (bar5));
 
 	for(int i=0;i<=30000000;i++);
 	printk("Start!!!");
