@@ -6,13 +6,13 @@
 struct free_obj {
 	struct free_obj *next;
 };
-struct page_list {
-	struct page_list *next;
+struct page_hdr {
+	struct page_hdr *next;
 };
 struct obj_pool {
 	void *free_page;
 	struct free_obj *free_list;
-	struct page_list *page_head;
+	struct page_hdr *page_head;
 	uint64_t obj_size;
 	uint16_t page_free;
 }meta_obj_pool = {
@@ -30,11 +30,11 @@ void *obj_pool_alloc(struct obj_pool *obp) {
 	}
 	if (obp->page_free < obp->obj_size) {
 		void *page = get_page();
-		struct page_list *page_header = page;
+		struct page_hdr *page_header = page;
 		page_header->next = obp->page_head;
 		obp->page_head = page_header;
-		obp->free_page = page_header+1;
-		obp->page_free = PAGE_SIZE-sizeof(struct page_list);
+		obp->free_page = page_header;
+		obp->page_free = PAGE_SIZE-sizeof(struct page_hdr);
 	}
 	void *ret = obp->free_page+PAGE_SIZE-obp->page_free;
 	obp->page_free -= obp->obj_size;
@@ -44,9 +44,9 @@ void *obj_pool_alloc(struct obj_pool *obp) {
 void obj_pool_free(struct obj_pool *obp, void *obj) {
 	//Sanity check
 	uint64_t tmp = (uint64_t)obj;
-	uint64_t tmp_aligned = tmp&(~(PAGE_SIZE-1));
-	if ((tmp-tmp_aligned-sizeof(struct page_list))%obp->obj_size != 0)
-		panic("Invalid object free");
+	uint64_t tmp_aligned = ALIGN(tmp, PAGE_SIZE_BIT);
+	if ((tmp-tmp_aligned-sizeof(struct page_hdr))%obp->obj_size != 0)
+		panic("Invalid object free %p %p %d\n", tmp, tmp_aligned, obp->obj_size);
 
 	struct free_obj *free_obj = obj;
 	free_obj->next = obp->free_list;
@@ -59,6 +59,7 @@ struct obj_pool *obj_pool_create(uint64_t size) {
 	disable_interrupts();
 	struct obj_pool *obp = obj_pool_alloc(&meta_obj_pool);
 	enable_interrupts();
+	obp->page_head = NULL;
 	obp->free_page = NULL;
 	obp->free_list = NULL;
 	obp->page_free = 0;
@@ -67,9 +68,9 @@ struct obj_pool *obj_pool_create(uint64_t size) {
 }
 
 void obj_pool_destroy(struct obj_pool *obp) {
-	struct page_list *ph = obp->page_head;
+	struct page_hdr *ph = obp->page_head;
 	while(ph) {
-		struct page_list *next = ph->next;
+		struct page_hdr *next = ph->next;
 		drop_page(ph);
 		ph = next;
 	}

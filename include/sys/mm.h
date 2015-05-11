@@ -104,6 +104,7 @@ struct vm_area {
 struct vm_area;
 
 void memory_init(struct smap_t *, int);
+long insert_range(uint64_t base, size_t len);
 void map_page(uint64_t addr, uint64_t vaddr, int pgsize, int flags);
 void unmap(uint64_t vaddr);
 void map_range(uint64_t addr, uint64_t vaddr, uint64_t len, int pgsize, int flags);

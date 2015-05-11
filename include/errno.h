@@ -21,4 +21,5 @@
 #define   EACCES       13
 #define   EBUSY        16
 #define   EINVAL       22
+#define   EMFILE       24
 #define   EADDRINUSE   67

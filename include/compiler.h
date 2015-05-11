@@ -2,6 +2,12 @@
 
 #define __please_inline__ __attribute__((always_inline))
 
+#if __GNUC__ >= 4 && __GNUC_MINOR__ >= 8
+#define __noreturn _Noreturn
+#else
+#define __noreturn __attribute__((noreturn))
+#endif
+
 #define offsetof(type, member)  __builtin_offsetof (type, member)
 #define container_of(ptr, type, member) ( __extension__ { \
 	const typeof( ((type *)0)->member ) *__mptr = (ptr); \

@@ -15,13 +15,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <compiler.h>
 
 void (*_init)() __attribute__((weak)) = NULL;
 void (*_fini)() __attribute__((weak)) = NULL;
 
 //no frame pointer to ruin our perfect stack
 __attribute__((optimize("omit-frame-pointer")))
-_Noreturn void _start() {
+__noreturn void _start() {
 __asm__ ("xor %rbp,%rbp\n\t" //Clear rbp
 	"mov %rdx,%r9\n\t" //6th = rdx?
 	"pop %rsi\n\t" //Second arg = argc

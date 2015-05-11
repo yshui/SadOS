@@ -20,7 +20,7 @@ uint64_t page_fault_handler(uint64_t err) {
 	struct vm_area *vma = vma_find_by_vaddr(current->as, vaddr);
 	if (!vma) {
 		printk("User space trying to access invalid memory\n");
-		current->priority = -100;
+		kill_current();
 		return 1; //Reschedule
 	}
 
@@ -35,7 +35,7 @@ uint64_t page_fault_handler(uint64_t err) {
 	if (err & PTE_W) {
 		if (!vma->vma_flags & VMA_RW) {
 			printk("Writing to read-only page\n");
-			current->priority = -100;
+			kill_current();
 			return 1;
 		}
 		if (pe->p->snap_count > 0)
@@ -44,6 +44,7 @@ uint64_t page_fault_handler(uint64_t err) {
 	}
 	address_space_map(page);
 	enable_interrupts();
+	printk("Return to user space\n");
 
 	return 0;
 

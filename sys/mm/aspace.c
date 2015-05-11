@@ -291,21 +291,17 @@ struct vm_area *
 insert_vma_to_any(struct address_space *as, uint64_t len, int flags) {
 	disable_interrupts();
 	struct vm_area **now = &as->vma;
+	uint64_t now_addr = as->low_addr;
 	while(*now) {
-		uint64_t now_end = (*now)->vma_begin+(*now)->vma_length;
-		if ((*now)->next) {
-			if ((*now)->next->vma_begin-now_end >= len)
-				break;
-		} else {
-			if (as->high_addr-now_end >= len)
-				break;
-		}
+		if ((*now)->vma_begin >= now_addr+len)
+			break;
+		now_addr = (*now)->vma_begin+(*now)->vma_length;
 		now = &(*now)->next;
 	}
-	if (!*now)
+	if (!*now && as->high_addr < now_addr+len)
 		return ERR_PTR(-1);
 	struct vm_area *nvma = obj_pool_alloc(as->vma_pool);
-	nvma->vma_begin = (*now)->vma_begin+(*now)->vma_length;
+	nvma->vma_begin = now_addr;
 	nvma->vma_length = len;
 	nvma->page_size = 0;
 	nvma->vma_flags = flags;
@@ -323,14 +319,18 @@ insert_vma_to_any(struct address_space *as, uint64_t len, int flags) {
 
 int validate_range(uint64_t base, size_t len) {
 	struct vm_area *vma = vma_find_by_vaddr(current->as, base);
-	if (!vma)
-		return 1;
-	while(len>0) {
+	uint64_t xbase = base, xend = base+len;
+	do {
+		if (!vma || vma->vma_begin > base) {
+			printk("No vma mapped at %p, which is inside [%p-%p]\n", base, xbase, xend);
+			return 1;
+		}
 		uint64_t tmp = vma->vma_begin+vma->vma_length;
+		if (tmp-base >= len)
+			break;
 		len -= tmp-base;
 		base = tmp;
-		if (!vma->next || vma->next->vma_begin != base)
-			return 1;
-	}
+		vma = vma->next;
+	} while (len > 0);
 	return 0;
 }

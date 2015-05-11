@@ -16,33 +16,32 @@
 #include <sys/defs.h>
 #include <sys/printk.h>
 #include <sys/panic.h>
+
 typedef uint64_t (*handler_t)(int vector);
 extern int interrupt_disabled;
+
+#define disable_interrupts() _disable_interrupts(__FILE__, __func__, __LINE__)
+#define enable_interrupts() _enable_interrupts(__FILE__, __func__, __LINE__)
 
 static inline void _disable_interrupts(const char *file, const char *func, int line) {
 	if (interrupt_disabled) {
 		interrupt_disabled++;
-		printk("Nested disable interrupt %d, at %s:%d (%s)\n", interrupt_disabled, file, line, func);
+		//printk("Nested disable interrupt %d, at %s:%d (%s)\n", interrupt_disabled, file, line, func);
 		return;
 	}
 	__asm__ volatile ("cli");
 	interrupt_disabled = 1;
-	printk("Disable interrupt 1, at %s:%d (%s)\n", file, line, func);
+	//printk("Disable interrupt 1, at %s:%d (%s)\n", file, line, func);
 }
 
 static inline void _enable_interrupts(const char *file, const char *func, int line) {
-	if (!interrupt_disabled) {
-		printk("Invalid call to enable interrupt, at %s:%d (%s)\n", file, line, func);
-		panic("");
-	}
+	if (!interrupt_disabled)
+		panic("Invalid call to enable interrupt, at %s:%d (%s)\n", file, line, func);
 	interrupt_disabled--;
-	printk("Nested enable interrupt %d, at %s:%d (%s)\n", interrupt_disabled, file, line, func);
+	//printk("Nested enable interrupt %d, at %s:%d (%s)\n", interrupt_disabled, file, line, func);
 	if (!interrupt_disabled)
 		__asm__ volatile ("sti");
 }
-
-#define disable_interrupts() _disable_interrupts(__FILE__, __func__, __LINE__)
-#define enable_interrupts() _enable_interrupts(__FILE__, __func__, __LINE__)
 
 int int_register_handler(uint64_t, handler_t);
 void int_deregister_handler(uint64_t);

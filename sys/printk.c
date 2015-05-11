@@ -70,7 +70,7 @@ int itoa(long a, int base, char *str, int width, int sign) {
 }
 
 static char printk_buf[8192];
-int printk(const char *format, ...) {
+int _printk(const char *format, ...) {
 	va_list val;
 	int num;
 	size_t ptr;

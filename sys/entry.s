@@ -30,7 +30,7 @@ tmp_reg: .quad 0
 	pushq %r15
 .endm
 
-.macro pop_all_register
+.macro pop_all_register, pop_rax
 	popq %r15
 	popq %r14
 	popq %r13
@@ -44,7 +44,11 @@ tmp_reg: .quad 0
 	popq %rdx
 	popq %rcx
 	popq %rbx
+	.if \pop_rax == 1
 	popq %rax
+	.else
+	addq $8, %rsp
+	.endif
 	popq %rdi
 .endm
 
@@ -61,12 +65,12 @@ tmp_reg: .quad 0
 	jnc normal_intret
 	movq %rsp, %rdi
 	call int_reschedule
-	pop_all_register
+	pop_all_register 1
 	iretq
 .endm
 
 normal_intret:
-	pop_all_register
+	pop_all_register 1
 	iretq
 
 .align 16
@@ -82,6 +86,7 @@ vector = 32
 
 .global syscall_entry, syscall_return
 .global syscall_table
+.global interrupt_disabled
 
 syscall_entry:
 	movq %rsp, (tmp_reg)
@@ -90,15 +95,41 @@ syscall_entry:
 	push_all_register 0
 	movq %r10, %rcx
 	movq $syscall_table, %r10
-	movq 0(%r10, %rax, 1), %r10
+	movq 0(%r10, %rax, 8), %r10
 	call *%r10
+
 syscall_return:
-	pop_all_register
+	movq interrupt_disabled, %r10
+	testq %r10, %r10
+	jnz ret_panic
+	pop_all_register 0
 	popq %rsp         #switch back to user stack
 	sysretq
 
+.global ret_new_process, panic
+ret_new_process:
+	movq $0, interrupt_disabled
+	movq current, %rax
+	movq $1, 16(%rax) #set state to be running
+	sti
+	jmp syscall_return
+
+panic_msg: .ascii "Return from syscall with interrupt disabled\n\0"
+
+ret_panic:
+	cli
+	movq $panic_msg, %rdi
+	call _printk
+	hlt
+
 interrupt_entry int_entry_common, int_handler, 1
 interrupt_entry page_fault_entry, page_fault_handler, 1
+interrupt_entry gp_entry2, gp_handler, 1
+
+.global gp_entry
+gp_entry:
+	pushq %rsp
+	jmp gp_entry2
 
 .global switch_to
 .global current

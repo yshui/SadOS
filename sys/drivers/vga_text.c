@@ -14,7 +14,6 @@
  */
 #include <sys/portio.h>
 #include <sys/printk.h>
-#include <sys/printk.h>
 #include <sys/mm.h>
 #define R (25)
 #define C (80)

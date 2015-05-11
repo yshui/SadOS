@@ -100,7 +100,7 @@ static inline void load_tss(uint16_t idx) {
 }
 
 #define STACK_SIZE 4096
-char stack[STACK_SIZE];
+char istack[STACK_SIZE];
 char estack[STACK_SIZE];
 
 void setup_tss() {
@@ -115,7 +115,7 @@ void setup_tss() {
 	sd->sd_hibase = ((uint64_t)&tss) >> 24;
 
 	//Put a rsp in tss.rsp as well, just in case
-	tss.rsp[0] = (uint64_t)(stack+STACK_SIZE); //Interrupt stack
+	tss.rsp[0] = (uint64_t)(istack+STACK_SIZE); //Interrupt stack
 	tss.ist[0] = 0;
 	tss.ist[1] = (uint64_t)(estack+STACK_SIZE); //Exception stack
 	load_tss(48);

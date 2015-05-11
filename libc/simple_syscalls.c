@@ -14,6 +14,7 @@
  */
 #include <syscall.h>
 #include <stdlib.h>
+#include <compiler.h>
 #include "err.h"
 #include "simple_syscalls.h"
 
@@ -35,7 +36,7 @@ rett name(type1 a1, type2 a2, type3 a3, type4 a4) { \
 	syscall_ret(ret, rett) \
 }
 
-_Noreturn void exit(int status) {
+__noreturn void exit(int status) {
 	syscall_1(NR_exit, (uint64_t)status);
 	__builtin_unreachable();
 }

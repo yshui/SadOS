@@ -104,6 +104,53 @@ void map_range(uint64_t addr, uint64_t vaddr, uint64_t len, int pgsize, int flag
 	for (i=0; i<len; i+=size)
 		map_page(addr+i, vaddr+i, pgsize, flags);
 }
+static struct memory_range *free_range;
+static struct obj_pool *frng_pool;
+static void memory_range_init(struct smap_t *smap, int smap_len) {
+	frng_pool = obj_pool_create(sizeof(struct memory_range));
+
+	struct memory_range **ptr = &free_range;
+	for (int i = 0; i < smap_len; i++) {
+		struct memory_range *mr = obj_pool_alloc(frng_pool);
+		if (smap[i].type != 1)
+			continue;
+		mr->base = smap[i].base;
+		mr->length = smap[i].length;
+		*ptr = mr;
+		ptr = &mr->next;
+	}
+}
+
+static int is_range_reserved(uint64_t base, size_t len) {
+	struct memory_range *now = free_range;
+	uint64_t end = base+len;
+	while(now) {
+		uint64_t mrend = now->base+now->length;
+		if (end > now->base && now->base < mrend)
+			return 0;
+		if (now->base >= end)
+			return 1;
+		now = now->next;
+	}
+	return 1;
+}
+
+long insert_range(uint64_t base, size_t len) {
+	if (!is_range_reserved(base, len))
+		return -1;
+	struct memory_range *new = obj_pool_alloc(frng_pool);
+	new->base = base;
+	new->length = len;
+	struct memory_range **nowp = &free_range;
+	while(*nowp) {
+		if ((*nowp)->base >= base+len)
+			break;
+		nowp = &(*nowp)->next;
+	}
+	new->next = *nowp;
+	*nowp = new;
+	return 0;
+}
 
 void memory_init(struct smap_t *smap, int smap_len) {
 	//We need an initial page table to bootstrap
@@ -180,6 +227,7 @@ void memory_init(struct smap_t *smap, int smap_len) {
 	rm.base = ((uint64_t)&physbase)&~0xfff;
 	rm.length = physend+0x10000-rm.base;
 	page_allocator_init(extra_page, npage, smap, smap_len, &rm);
+	memory_range_init(smap, smap_len);
 	address_space_init();
 	page_man_init();
 	page_fault_init();

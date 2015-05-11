@@ -42,7 +42,7 @@ int ptsetup;
 struct task *idle_task(void) {
 	struct task *t = new_task();
 	t->as = NULL;
-	t->state = RUNNABLE;
+	t->state = TASK_RUNNABLE;
 	t->pid = 1;
 	t->priority = -21;
 	list_add(&tasks, &t->tasks);
@@ -56,7 +56,7 @@ static inline uint64_t atoi_oct(const char *str) {
 	}
 	return ans;
 }
-_Noreturn void start_init(void) {
+__noreturn void start_init(void) {
 	//Search for /bin/init in tarfs
 	struct tar_header *thdr = (void *)&_binary_tarfs_start;
 	while((char *)thdr <= &_binary_tarfs_end) {
@@ -106,18 +106,17 @@ _Noreturn void start_init(void) {
 	insert_vma_to_vaddr(user_as, user_addr, PAGE_SIZE, VMA_RW);
 	address_space_assign_addr(user_as, phys_addr, user_addr, PF_SHARED);
 
-	//Map a page to 0x600000 for bss
-	page = get_page();
-	memset(page, 0, PAGE_SIZE);
-	insert_vma_to_vaddr(user_as, 0x600000, PAGE_SIZE*2, VMA_RW);
+	//Map a large enough range to 0x600000
+	insert_vma_to_vaddr(user_as, 0x600000, PAGE_SIZE*256, VMA_RW);
 
 
 	//Map 0xb8000 to 0x10000 so init can show something
-	insert_vma_to_vaddr(user_as, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT), VMA_RW);
-	address_space_assign_addr_range(user_as, 0xb8000, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT));
+	//insert_vma_to_vaddr(user_as, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT), VMA_RW);
+	//address_space_assign_addr_range(user_as, 0xb8000, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT));
 
 	//Hard coded entry point for init
 	struct task *t = new_process(user_as, entry_point, user_addr+PAGE_SIZE-8);
+	t->pid = 2;
 	list_add(&tasks, &t->tasks);
 
 	schedule();
@@ -158,8 +157,8 @@ void services_init(void) {
 		i++;
 	}
 }
-
-_Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
+extern char gp_entry;
+__noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	struct smap_t *smap;
 	int i, smap_len;
 
@@ -172,6 +171,8 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	services_init();
 	syscalls_init();
 	idt_init();
+
+	register_handler(0xd, &gp_entry, 0xf, 1);
 
 	while(modulep[0] != 0x9001)
 		modulep += modulep[1]+2;
@@ -201,7 +202,7 @@ _Noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 
 uint32_t* loader_stack;
 
-_Noreturn void real_boot(void)
+__noreturn void real_boot(void)
 {
 	start(
 		(uint32_t*)((char*)(uint64_t)loader_stack[1] + (uint64_t)&kernbase - (uint64_t)&physbase),
