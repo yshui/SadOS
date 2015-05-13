@@ -25,6 +25,22 @@
 #include <compiler.h>
 #include <sys/panic.h>
 #include <sys/defs.h>
+
+#define typeof(x) __typeof__(x)
+
+#define container_off(containing_type, member)	\
+	offsetof(containing_type, member)
+
+#define check_type(expr, type)			\
+	((typeof(expr) *)0 != (type *)0)
+
+#define check_types_match(expr1, expr2)		\
+	((typeof(expr1) *)0 != (typeof(expr2) *)0)
+
+
+#define container_off_var(var, member)		\
+	container_off(typeof(*var), member)
+
 #define stringify(expr) stringify_1(expr)
 /* Double-indirection required to stringify expansions */
 #define stringify_1(expr) #expr

@@ -15,4 +15,10 @@
 #pragma once
 
 extern int (*print_handler)(const char *);
-int printk(const char *fmt, ...);
+int _printk(const char *fmt, ...);
+#define printk(...) \
+	do { \
+		_printk("[" __FILE__ ":%d] ", __LINE__ ); \
+		_printk(__VA_ARGS__); \
+	}while(0);
+

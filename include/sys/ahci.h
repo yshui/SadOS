@@ -1,3 +1,8 @@
+#include <sys/defs.h>
+#define AHCI_BASE 0x400000
+#define BYTE uint8_t
+#define WORD uint16_t
+#define DWORD uint32_t
 typedef enum
 {
     FIS_TYPE_REG_H2D    = 0x27, // Register FIS - host to device
@@ -140,5 +145,62 @@ typedef volatile struct tagHBA_MEM
     HBA_PORT    ports[1];   // 1 ~ 32
 } HBA_MEM;
 
+typedef struct tagHBA_PRDT_ENTRY
+{
+    DWORD   dba;        // Data base address
+    DWORD   dbau;       // Data base address upper 32 bits
+    DWORD   rsv0;       // Reserved
+ 
+    // DW3
+    DWORD   dbc:22;     // Byte count, 4M max
+    DWORD   rsv1:9;     // Reserved
+    DWORD   i:1;        // Interrupt on completion
+} HBA_PRDT_ENTRY;
+
+typedef struct tagHBA_CMD_TBL
+{
+    // 0x00
+    BYTE    cfis[64];   // Command FIS
+ 
+    // 0x40
+    BYTE    acmd[16];   // ATAPI command, 12 or 16 bytes
+ 
+    // 0x50
+    BYTE    rsv[48];    // Reserved
+ 
+    // 0x80
+    HBA_PRDT_ENTRY  prdt_entry[1];  // Physical region descriptor table entries, 0 ~ 65535
+} HBA_CMD_TBL;
+
+typedef struct tagHBA_CMD_HEADER
+{
+    // DW0
+    BYTE    cfl:5;      // Command FIS length in DWORDS, 2 ~ 16
+    BYTE    a:1;        // ATAPI
+    BYTE    w:1;        // Write, 1: H2D, 0: D2H
+    BYTE    p:1;        // Prefetchable
+ 
+    BYTE    r:1;        // Reset
+    BYTE    b:1;        // BIST
+    BYTE    c:1;        // Clear busy upon R_OK
+    BYTE    rsv0:1;     // Reserved
+    BYTE    pmp:4;      // Port multiplier port
+ 
+    WORD    prdtl;      // Physical region descriptor table length in entries
+ 
+    // DW1
+    volatile
+    DWORD   prdbc;      // Physical region descriptor byte count transferred
+ 
+    // DW2, 3
+    DWORD   ctba;       // Command table descriptor base address
+    DWORD   ctbau;      // Command table descriptor base address upper 32 bits
+ 
+    // DW4 - 7
+    DWORD   rsv1[4];    // Reserved
+} HBA_CMD_HEADER;
+
 uint64_t checkAllBuses(void);
 void probe_port(HBA_MEM *abar);
+uint8_t read_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t* buf);
+uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t* buf);

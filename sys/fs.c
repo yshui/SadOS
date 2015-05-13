@@ -207,10 +207,7 @@ struct file* sata_open(const char* pathname, int flags)
             return fd;
         }
     }
-    //file does not exist
-    if (flags != O_CREAT)
-        printk("Error: file doesn't exist.\n");
-    else
+    if (flags == O_CREAT)
     {
         int parent_dentry = sata_get_parent(fd -> fname);
         if (parent_dentry == -1)
@@ -223,6 +220,9 @@ struct file* sata_open(const char* pathname, int flags)
         build_inode(inode_id, flags);
         build_dentry(inode_id, dentry_id, parent_dentry, pathname);
     }
+    //file does not exist
+    else
+        printk("Error: file doesn't exist.\n");
     return NULL;
 }
 //read blocks from SATA

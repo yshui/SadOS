@@ -16,6 +16,7 @@
 #include <sys/defs.h>
 
 #define MSR_APIC_BASE (0x0000001b)
+#define MSR_EFER (0xc0000080)
 
 static inline uint64_t rdmsr(uint32_t msr) {
 	uint32_t D, A;

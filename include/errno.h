@@ -14,8 +14,12 @@
  */
 #pragma once
 
-#define EPERM   1
-#define ENOENT  2
-#define ENOMEM 12
-#define EACCES 13
-#define EINVAL 22
+#define   EPERM        1
+#define   ENOENT       2
+#define   EBADF        9
+#define   ENOMEM       12
+#define   EACCES       13
+#define   EBUSY        16
+#define   EINVAL       22
+#define   EMFILE       24
+#define   EADDRINUSE   67

@@ -235,7 +235,7 @@ static inline void state_transition(uint8_t symbol) {
 	}
 }
 
-void kbd_handler(int v) {
+uint64_t kbd_handler(int v) {
 	uint8_t x = inb(0x64);
 	while(x&1) {
 		uint8_t c = inb(0x60);
@@ -243,6 +243,7 @@ void kbd_handler(int v) {
 		//printk("!!%x\n", c);
 		state_transition(c);
 	}
+	return 0;
 }
 
 void kbd_init(void) {

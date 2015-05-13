@@ -22,9 +22,9 @@ _x86_64_asm_lgdt:
 	pushq %r10                  # push return address
 	lretq                       # far-return to new cs descriptor ( the retq below )
 .done:
-	movq %rdx, %es
-	movq %rdx, %fs
-	movq %rdx, %gs
-	movq %rdx, %ds
+#	movq %rdx, %es
+#	movq %rdx, %fs
+#	movq %rdx, %gs
+#	movq %rdx, %ds
 	movq %rdx, %ss
 	retq
