@@ -1,6 +1,7 @@
 #include <syscall.h>
 #include <ipc.h>
 #include <uapi/mem.h>
+#include <thread.h>
 #include <elf/elf.h>
 #include <string.h>
 //.bss in init can't exceed 1MB
@@ -56,5 +57,8 @@ int main() {
 	X='b';
 	vbase[2]=X;
 	vbase[3]=7;
+	struct thread_info ti;
+	get_thread_info(&ti);
+	exit(0);
 	for(;;);
 }

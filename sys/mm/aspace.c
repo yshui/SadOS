@@ -25,6 +25,19 @@ uint64_t vma_get_base(struct vm_area *vma) {
 	return vma->vma_begin;
 }
 
+static void unassign_page(struct address_space *as, struct page_entry *pe) {
+	disable_interrupts();
+	printk("Unassign page %p(%p), ref %d\n", pe->vaddr, pe->p->phys_addr, pe->p->ref_count);
+	binradix_delete(as->vaddr_map, pe->vaddr);
+	list_del(&pe->owner_of);
+	list_del(&pe->siblings);
+	enable_interrupts();
+
+	unmap_maybe_current(as, pe->vaddr);
+	page_unref(pe);
+	obj_pool_free(as->pe_pool, pe);
+}
+
 static long aspace_add_vma(struct address_space *as, struct vm_area *vma) {
 	disable_interrupts();
 	struct vm_area **now = &as->vma;
@@ -52,6 +65,7 @@ static long aspace_add_vma(struct address_space *as, struct vm_area *vma) {
 
 void aspace_init(struct address_space *ret, void *pml4, int flags) {
 	ret->vma_pool = obj_pool_create(sizeof(struct vm_area));
+	ret->pe_pool = obj_pool_create(sizeof(struct page_entry));
 	ret->vma = NULL;
 	ret->low_addr = USER_BASE;
 	ret->high_addr = USER_TOP;
@@ -116,30 +130,26 @@ address_space_map(uint64_t vaddr) {
 }
 
 
-static inline
+static
 void address_space_assign_page_no_addr_check(struct address_space *as,
 					struct page *p, uint64_t vaddr,
-					int flags) {
+					struct vm_area *vma, int flags) {
 	if ((flags&(PF_SHARED|PF_SNAPSHOT)) == (PF_SHARED|PF_SNAPSHOT))
 		panic("Insert page with invalid flags, a page can't be both shared and snapshot");
 	if ((flags&(PF_HARDWARE|PF_SNAPSHOT)) == (PF_HARDWARE|PF_SNAPSHOT))
 		panic("Insert page with invalid flags, a page can't be both hardware and snapshot");
 
-	struct page_entry *pe = get_allocated_page(as, vaddr);
 	disable_interrupts();
-	if (!pe) {
-		pe = page_entry_new(as, vaddr);
-		binradix_insert(as->vaddr_map, vaddr, pe);
-	} else {
-		//Overwrite
-		list_del(&pe->owner_of);
-		//Remove the old page table entry
-		unmap_maybe_current(as, vaddr);
-	}
+	struct page_entry *pe = get_allocated_page(as, vaddr);
+	if (pe)
+		unassign_page(as, pe);
+
+	pe = page_entry_new(as, vaddr);
 	pe->p = p;
 	pe->flags = flags;
 	list_add(&p->owner, &pe->owner_of);
-	p->ref_count++;
+	list_add(&vma->pages, &pe->siblings);
+	binradix_insert(as->vaddr_map, vaddr, pe);
 
 	//Check the sanity of flags
 	if (flags&PF_SNAPSHOT) {
@@ -164,7 +174,7 @@ long address_space_assign_page_with_vma(struct address_space *as, struct vm_area
 	}
 	if (vaddr < vma->vma_begin || vaddr >= vma->vma_begin+vma->vma_length)
 		return -2;
-	address_space_assign_page_no_addr_check(as, p, vaddr, flags);
+	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
 	return 0;
 }
 
@@ -179,7 +189,7 @@ long address_space_assign_page(struct address_space *as, struct page *p,
 	enable_interrupts();
 	if (!vma)
 		return -2;
-	address_space_assign_page_no_addr_check(as, p, vaddr, flags);
+	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
 	return 0;
 }
 
@@ -195,7 +205,7 @@ long address_space_assign_addr(struct address_space *as, uint64_t addr, uint64_t
 	if (!vma)
 		return -2;
 	struct page *p = manage_phys_page(addr);
-	address_space_assign_page_no_addr_check(as, p, vaddr, flags);
+	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
 	return 0;
 }
 
@@ -208,7 +218,7 @@ long address_space_assign_addr_with_vma(struct address_space *as, struct vm_area
 	if (vaddr < vma->vma_begin || vaddr >= vma->vma_begin+vma->vma_length)
 		return -2;
 	struct page *p = manage_phys_page(addr);
-	address_space_assign_page_no_addr_check(as, p, vaddr, flags);
+	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
 	return 0;
 }
 
@@ -268,6 +278,7 @@ insert_vma_to_vaddr(struct address_space *as, uint64_t vaddr, uint64_t len, int 
 		//address not aligned
 		return ERR_PTR(-2);
 
+	list_head_init(&vma->pages);
 	vma->vma_begin = vaddr;
 	vma->vma_length = len;
 	vma->vma_flags = flags;
@@ -299,6 +310,7 @@ insert_vma_to_any(struct address_space *as, uint64_t len, int flags) {
 	nvma->vma_length = len;
 	nvma->page_size = 0;
 	nvma->vma_flags = flags;
+	list_head_init(&nvma->pages);
 
 	if (*now)
 		(*now)->prev = &nvma->next;
@@ -309,6 +321,90 @@ insert_vma_to_any(struct address_space *as, uint64_t len, int flags) {
 	printk("Target: %p\n", nvma->vma_begin);
 
 	return nvma;
+}
+
+void
+remove_vma_range(struct address_space *as, uint64_t base, uint64_t len) {
+	if (!IS_ALIGNED(base, PAGE_SIZE_BIT) || !IS_ALIGNED(len, PAGE_SIZE_BIT))
+		panic("Unaligned address");
+	struct vm_area **nowp = &as->vma;
+	while (*nowp) {
+		uint64_t now_end = (*nowp)->vma_begin+(*nowp)->vma_length;
+		//Completely outside
+		if (now_end <= base)
+			goto next;
+		if ((*nowp)->vma_begin >= base+len)
+			break;
+		//Whole range is included in base~base+len
+		if ((*nowp)->vma_begin >= base && now_end <= base+len) {
+			struct vm_area *tmp = *nowp;
+			*nowp = tmp->next;
+			if (*nowp)
+				(*nowp)->prev = nowp;
+
+			struct page_entry *pei, *petmp;
+			list_for_each_safe(&tmp->pages, pei, petmp, siblings)
+				unassign_page(as, pei);
+			obj_pool_free(as->vma_pool, tmp);
+			continue;
+		}
+		//base~base+len is included in this vma
+		if ((*nowp)->vma_begin < base && now_end > base+len) {
+			(*nowp)->vma_length = base-(*nowp)->vma_begin;
+
+			struct vm_area *nvma = obj_pool_alloc(as->vma_pool);
+			nvma->vma_begin = base+len;
+			nvma->vma_length = now_end-nvma->vma_begin;
+			nvma->next = (*nowp)->next;
+			list_head_init(&nvma->pages);
+			if (nvma->next)
+				nvma->next->prev = &nvma->next;
+			(*nowp)->next = nvma;
+			nvma->prev = nowp;
+
+			struct page_entry *pei, *petmp;
+			list_for_each_safe(&(*nowp)->pages, pei, petmp, siblings) {
+				if (pei->vaddr >= base+len) {
+					list_del(&pei->siblings);
+					list_add(&nvma->pages, &pei->siblings);
+				} else if (pei->vaddr >= base)
+					unassign_page(as, pei);
+			}
+			break;
+		}
+		//Partially covered
+		if ((*nowp)->vma_begin < base)
+			(*nowp)->vma_length = base-(*nowp)->vma_begin;
+		else {
+			(*nowp)->vma_begin = base+len;
+			(*nowp)->vma_length = now_end-(base+len);
+		}
+		struct page_entry *pei, *petmp;
+		list_for_each_safe(&(*nowp)->pages, pei, petmp, siblings) {
+			if (pei->vaddr < base || pei->vaddr >= base+len)
+				continue;
+			unassign_page(as, pei);
+		}
+next:
+		nowp = &(*nowp)->next;
+	}
+
+	return;
+}
+
+static void free_page_table(uint64_t *pt_base, uint64_t *pte) {
+	drop_page(pt_base);
+	if (pte)
+		*pte = 0;
+}
+
+void destroy_as(struct address_space *as) {
+	remove_vma_range(as, as->low_addr, as->high_addr-as->low_addr);
+	if (as->vma)
+		panic("Not all vma removed");
+	walk_user_page_table(as->pml4, free_page_table);
+	obj_pool_destroy(as->vma_pool);
+	obj_pool_destroy(as->pe_pool);
 }
 
 int validate_range(uint64_t base, size_t len) {

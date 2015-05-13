@@ -38,6 +38,7 @@
 #include <string.h>
 #include <sys/tarfs.h>
 #include <sys/ahci.h>
+#include <uapi/thread.h>
 #include <vfs.h>
 char buf[20000] = {0};
 char stack[4096];
@@ -124,7 +125,11 @@ __noreturn void start_init(void) {
 	//address_space_assign_addr_range(user_as, 0xb8000, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT));
 
 	//Hard coded entry point for init
-	struct task *t = new_process(user_as, entry_point, user_addr+PAGE_SIZE-8);
+	struct thread_info ti;
+	memset(&ti, 0, sizeof(ti));
+	ti.rcx = entry_point;
+	ti.rsp = user_addr+PAGE_SIZE-8;
+	struct task *t = new_process(user_as, &ti);
 	t->pid = 2;
 	list_add(&tasks, &t->tasks);
 

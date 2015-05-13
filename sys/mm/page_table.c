@@ -31,3 +31,23 @@ void unmap_maybe_current(struct address_space *as, uint64_t vaddr) {
 		*pte = 0;
 	return;
 }
+
+static void _walk_page_table(uint64_t *pt, uint64_t *pte, int depth, pt_visitor_fn fn) {
+	if (depth < 3) {
+		int top = 512;
+		if (depth == 0)
+			top = 256;
+		for (int i = 0; i < top; i++) {
+			if (GET_BIT(pt[i], 7))
+				panic("Huge page in user space");
+			if (pt[i]&PTE_P) {
+				uint64_t *next_level = (void *)(KERN_VMBASE+pte_get_base(pt[i]));
+				_walk_page_table(next_level, &pt[i], depth+1, fn);
+			}
+		}
+	}
+	fn(pt, pte);
+}
+void walk_user_page_table(uint64_t *pml4, pt_visitor_fn fn) {
+	_walk_page_table(pml4, NULL, 0, fn);
+}

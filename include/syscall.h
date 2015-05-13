@@ -16,7 +16,7 @@
 #define _SYSCALL_H
 
 #include <sys/defs.h>
-#include <sys/syscall.h>
+#include <uapi/syscall.h>
 
 static __inline uint64_t syscall_0(uint64_t n) {
 	uint64_t ret;

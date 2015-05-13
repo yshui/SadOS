@@ -5,16 +5,28 @@
 #include <sys/msr.h>
 #include <sys/interrupt.h>
 #include <sys/port.h>
+#include <sys/copy.h>
 #include <string.h>
+#include <sys/syscall.h>
 struct list_head tasks;
 static struct obj_pool *task_pool = NULL;
-struct task *current;
+struct task *current, *to_kill;
 uint64_t kernel_stack;
 extern void switch_to(struct task *);
+static void kill_process(struct task *t) {
+	if (t == current)
+		panic("Trying to kill current processs");
+	destroy_as(t->as);
+	obj_pool_destroy(t->file_pool);
+	drop_page(t->fds);
+	drop_page(t->kstack_base-PAGE_SIZE);
+}
 void schedule(void) {
 	//FIXME Implement the simple O(1) scheduler
 	if (interrupt_disabled)
 		panic("schedule() called with disabled interrupt\n");
+	if (to_kill)
+		panic("Why is to_kill set????");
 	disable_interrupts();
 	register struct task *t, *next = NULL;
 	list_for_each(&tasks, t, tasks)
@@ -40,9 +52,15 @@ void schedule(void) {
 
 	if (current->state == TASK_RUNNING)
 		current->state = TASK_RUNNABLE;
+	else if (current->state == TASK_ZOMBIE)
+		to_kill = current;
 	//Save current stack pointer
 	switch_to(next);
 	current->state = TASK_RUNNING;
+	if (to_kill) {
+		kill_process(to_kill);
+		to_kill = NULL;
+	}
 	enable_interrupts();
 	return;
 }
@@ -69,8 +87,7 @@ struct task *new_task(void) {
 	return obj_pool_alloc(task_pool);
 }
 extern char ret_new_process;
-struct task *new_process(struct address_space *as,
-			 uint64_t rip, uint64_t stack_base) {
+struct task *new_process(struct address_space *as, struct thread_info *ti) {
 	struct task *new_task = obj_pool_alloc(task_pool);
 	void *stack_page = get_page();
 	memset(stack_page, 0, PAGE_SIZE);
@@ -87,19 +104,16 @@ struct task *new_process(struct address_space *as,
 	//We need to forge the kernel stack of this process
 	//So when we schedule(), we can switch to this task
 
-	uint64_t *sb = (void *)new_task->kstack_base;
-	*(--sb) = stack_base;
-	sb -= 3;
-	*(--sb) = rip; //RCX
+	uint8_t *x = (void *)new_task->kstack_base;
+	ti->r11 |= BIT(9);
+	memcpy(x-sizeof(*ti), ti, sizeof(*ti));
 
-	sb -= 6;
-	*(--sb) = BIT(9); //R11 is rflags, set IF
-
-	sb -= 4;
+	uint64_t *sb = (void *)(x-sizeof(*ti));
 	*(--sb) = (uint64_t)&ret_new_process; //The schedule() return address
 
 	//Move up 6 move qword, for the registers saved by switch_to
 	sb -= 6;
+	memset(sb, 0, 6*sizeof(uint64_t));
 	new_task->krsp = (void *)sb;
 	return new_task;
 }
@@ -118,6 +132,13 @@ void wake_up(struct task *t) {
 	t->state = TASK_RUNNABLE;
 }
 
-void kill_current(void) {
-	current->priority = -100;
+SYSCALL(1, exit, int, code) {
+	kill_current(code);
+	schedule();
+	__builtin_unreachable();
+}
+
+SYSCALL(1, get_thread_info, void *, buf) {
+	copy_to_user_simple(current->ti, buf, sizeof(struct thread_info));
+	return 0;
 }

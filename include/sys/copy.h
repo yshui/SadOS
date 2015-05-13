@@ -14,3 +14,4 @@ struct page_list {
 
 struct list_head *copy_from_user(void *buf, size_t len);
 int copy_to_user(struct list_head *pgs, void *buf, size_t len);
+int copy_to_user_simple(void *src, void *buf, size_t len);

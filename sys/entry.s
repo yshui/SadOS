@@ -94,6 +94,8 @@ syscall_entry:
 	pushq tmp_reg
 	push_all_register 0
 	movq %r10, %rcx
+	movq current, %r10
+	movq %rsp, 16(%r10) #set current->ti
 	movq $syscall_table, %r10
 	movq 0(%r10, %rax, 8), %r10
 	call *%r10
@@ -102,6 +104,8 @@ syscall_return:
 	movq interrupt_disabled, %r10
 	testq %r10, %r10
 	jnz ret_panic
+	movq current, %r10
+	movq $0, 16(%r10) #current->ti = NULL
 	pop_all_register 0
 	popq %rsp         #switch back to user stack
 	sysretq
@@ -110,7 +114,7 @@ syscall_return:
 ret_new_process:
 	movq $0, interrupt_disabled
 	movq current, %rax
-	movq $1, 16(%rax) #set state to be running
+	movl $1, 24(%rax) #current->state = task_running
 	sti
 	jmp syscall_return
 

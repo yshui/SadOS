@@ -70,6 +70,7 @@ struct page {
 
 struct address_space {
 	struct obj_pool *vma_pool;
+	struct obj_pool *pe_pool;
 	struct binradix_node *vaddr_map; // Virtual -> Physical map
 	struct vm_area *vma;
 	uint64_t low_addr, high_addr;
@@ -81,6 +82,7 @@ struct page_entry {
 	struct page *p;
 	struct address_space *as;
 	struct list_node owner_of;
+	struct list_node siblings;
 	uint64_t vaddr;
 	uint16_t flags;
 };
@@ -89,15 +91,7 @@ struct vm_area {
 	int vma_flags;
 	int page_size; //0 for 4k, 1 for 2M
 	uint64_t vma_begin, vma_length;
-	union {
-		struct {
-			struct vm_area *snap;
-			uint64_t offset;
-		}vm_snap;
-		struct {
-			uint64_t pad1, pad2;
-		}vm_req;
-	}n;
+	struct list_head pages;
 	struct vm_area *next, **prev;
 	struct address_space *as;
 };
@@ -171,6 +165,8 @@ struct vm_area *insert_vma_to_any(struct address_space *as, uint64_t len, int fl
  */
 long address_space_map(uint64_t vaddr);
 
+//assign_page didn't increase the ref_count of page, so make sure the caller
+//holds a reference count, and don't drop that after this call
 long address_space_assign_page(struct address_space *as, struct page *,
 			       uint64_t vaddr, int flags);
 long address_space_assign_page_with_vma(struct address_space *as,
@@ -202,12 +198,15 @@ struct vm_area *vma_find_by_vaddr(struct address_space *, uint64_t vaddr);
 int validate_range(uint64_t base, size_t len);
 
 struct address_space *aspace_new(int flags);
+void destroy_as(struct address_space *as);
 
 void page_fault_init(void);
 void address_space_init(void);
 
+typedef void (*pt_visitor_fn)(uint64_t *pt_base, uint64_t *pte);
 uint64_t *ptable_get_entry_4k(uint64_t *pml4, uint64_t vaddr);
 void unmap_maybe_current(struct address_space *as, uint64_t vaddr);
+void walk_user_page_table(uint64_t *pt, pt_visitor_fn);
 
 struct page_entry *page_entry_new(struct address_space *, uint64_t vaddr);
 void share_page(struct page *);
@@ -216,3 +215,4 @@ void share_page(struct page *);
 void unshare_page(struct page_entry *);
 
 void page_man_init(void);
+int page_unref(struct page_entry *);

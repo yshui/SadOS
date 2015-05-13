@@ -107,3 +107,30 @@ int copy_to_user(struct list_head *pgs, void *buf, size_t len) {
 	enable_interrupts();
 	return 0;
 }
+
+int copy_to_user_simple(void *src, void *buf, size_t len) {
+	if (len > 4096)
+		panic("Please use copy_to_user()");
+	disable_interrupts();
+	if (validate_range((uint64_t)buf, len)) {
+		enable_interrupts();
+		return -1;
+	}
+
+	uint64_t aaddr = ALIGN((uint64_t)buf, PAGE_SIZE_BIT);
+	struct page_entry *pe = get_allocated_page(current->as, aaddr);
+	char *page;
+	if (!pe) {
+		page = get_page();
+		memset(page, 0, PAGE_SIZE);
+		struct page *p = manage_page((uint64_t)page);
+		address_space_assign_page(current->as, p, aaddr, PF_SHARED);
+	} else {
+		if (pe->p->snap_count > 0)
+			unshare_page(pe);
+		page = phys_to_virt(pe->p->phys_addr);
+	}
+	memcpy(page+((uint64_t)buf-aaddr), src, len);
+	enable_interrupts();
+	return 0;
+}

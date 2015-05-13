@@ -1,0 +1,14 @@
+trace-*
+*.o
+rootfs
+.gdbinit
+bochsrc
+bochsout.txt
+*.patch
+copyrightifier.pl
+compile_commands.json
+events
+newfs.506
+*.iso
+*.img
+*.orig

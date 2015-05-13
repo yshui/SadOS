@@ -20,12 +20,13 @@ uint64_t page_fault_handler(uint64_t err) {
 	struct vm_area *vma = vma_find_by_vaddr(current->as, vaddr);
 	if (!vma) {
 		printk("User space trying to access invalid memory\n");
-		kill_current();
+		kill_current(1);
 		return 1; //Reschedule
 	}
 
 	struct page_entry *pe = get_allocated_page(current->as, page);
 	if (!pe) {
+		zero_page->ref_count++;
 		address_space_assign_page(current->as, zero_page, page, PF_SNAPSHOT);
 		pe = get_allocated_page(current->as, page);
 		if (!pe)
@@ -35,7 +36,7 @@ uint64_t page_fault_handler(uint64_t err) {
 	if (err & PTE_W) {
 		if (!vma->vma_flags & VMA_RW) {
 			printk("Writing to read-only page\n");
-			kill_current();
+			kill_current(1);
 			return 1;
 		}
 		if (pe->p->snap_count > 0)
