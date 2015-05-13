@@ -40,6 +40,7 @@
 #include <sys/ahci.h>
 #include <vfs.h>
 char buf[20000] = {0};
+char stack[4096];
 
 extern void timer_init(void);
 struct smap_t smap_buf[20];
@@ -65,7 +66,10 @@ __noreturn void start_init(void) {
 	//Search for /bin/init in tarfs
 	struct tar_header *thdr = (void *)&_binary_tarfs_start;
 	while((char *)thdr <= &_binary_tarfs_end) {
-		if (strcmp(thdr->name, "bin/init") == 0)
+		char *n = thdr->name;
+		if (*n == '/')
+			n++;
+		if (strcmp(n, "bin/init") == 0)
 			break;
 		uint64_t size = atoi_oct(thdr->size);
 		printk("Name: %s, size: %d\n", thdr->name, size);

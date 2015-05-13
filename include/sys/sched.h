@@ -16,7 +16,8 @@ struct task {
 	int state;
 	struct list_node tasks;
 	struct fdtable *fds;
-	struct obj_pool *file_pool;
+	struct fdtable *astable;
+	struct obj_pool *file_pool, *as_pool;
 	struct address_space *as;
 	uint32_t pid;
 	int priority;

@@ -18,7 +18,9 @@
 #define NR_open_port    0
 #define NR_get_response 1
 #define NR_request      2
-#define NR_port_connect      3
+#define NR_port_connect 3
+#define NR_asnew        4
+#define NR_sendpage     5
 
 struct syscall_metadata {
 	void *ptr;

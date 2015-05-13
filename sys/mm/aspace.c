@@ -27,27 +27,17 @@ uint64_t vma_get_base(struct vm_area *vma) {
 
 static long aspace_add_vma(struct address_space *as, struct vm_area *vma) {
 	disable_interrupts();
-	if (!as->vma) {
-		as->vma = vma;
-		vma->prev = &as->vma;
-		vma->next = NULL;
-		enable_interrupts();
-		return 0;
-	}
 	struct vm_area **now = &as->vma;
+	uint64_t vma_end = vma->vma_begin+vma->vma_length;
 	while(*now) {
-		if ((*now)->vma_begin > vma->vma_begin)
+		uint64_t now_end = (*now)->vma_begin+(*now)->vma_length;
+		if ((*now)->vma_begin >= vma_end)
 			break;
-		if ((*now)->vma_begin+(*now)->vma_length > vma->vma_begin) {
+		if (now_end > vma->vma_begin && (*now)->vma_begin < vma_end) {
 			enable_interrupts();
 			return -1;
 		}
 		now = &(*now)->next;
-	}
-	uint64_t vma_end = vma->vma_begin+vma->vma_length;
-	if (*now && (*now)->vma_begin < vma_end) {
-		enable_interrupts();
-		return -1;
 	}
 
 	if (*now)
@@ -60,7 +50,7 @@ static long aspace_add_vma(struct address_space *as, struct vm_area *vma) {
 	return 0;
 }
 
-static void aspace_init(struct address_space *ret, void *pml4, int flags) {
+void aspace_init(struct address_space *ret, void *pml4, int flags) {
 	ret->vma_pool = obj_pool_create(sizeof(struct vm_area));
 	ret->vma = NULL;
 	ret->low_addr = USER_BASE;
@@ -244,6 +234,10 @@ long address_space_assign_addr_range(struct address_space *as, uint64_t addr, ui
 	while(tmp_len > tvma->vma_length) {
 		struct vm_area *nvma = tvma->next;
 		uint64_t vma_end = tvma->vma_begin+tvma->vma_length;
+		if (!(tvma->vma_flags&VMA_HW)) {
+			printk("Tring to assign hardware range to non hardware vma");
+			return -4;
+		}
 		if (nvma->vma_begin != vma_end) {
 			printk("Trying to map to area without VMA, start: %p", vma_end);
 			return -3;

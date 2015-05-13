@@ -31,14 +31,17 @@ int mem_port_connect(struct request *req, size_t len, struct list_head *pgs) {
 	uint64_t alen = ALIGN_UP(len, PAGE_SIZE_BIT);
 	long ret = 0, ret2;
 
-	if (mreq->dest_addr)
-		vma = insert_vma_to_vaddr(current->as, mreq->dest_addr, alen, VMA_RW);
-	else
-		vma = insert_vma_to_any(current->as, alen, VMA_RW);
-	if (mreq->type == MAP_PHYSICAL)
+	int vma_flags = VMA_RW;
+	if (mreq->type == MAP_PHYSICAL) {
 		printk("Client asking for %p -> %p, len %d\n", mreq->phys_addr, mreq->dest_addr, mreq->len);
-	else
+		vma_flags |= VMA_HW;
+	} else
 		printk("Client asking for %p(ignored) -> %p, len %d\n", mreq->phys_addr, mreq->dest_addr, mreq->len);
+
+	if (mreq->dest_addr)
+		vma = insert_vma_to_vaddr(current->as, mreq->dest_addr, alen, vma_flags);
+	else
+		vma = insert_vma_to_any(current->as, alen, vma_flags);
 	if (PTR_IS_ERR(vma)) {
 		printk("Can't insert vma, return error\n");
 		ret = -ENOMEM;

@@ -147,3 +147,13 @@ struct binradix_node *binradix_new(void) {
 	ret->len = 0;
 	return ret;
 }
+
+void binradix_for_each(struct binradix_node *r, void *d, visitor_fn v) {
+	if (r->data) {
+		v(r->data, d);
+		return;
+	}
+	for (int i = 0; i < 2; i++)
+		if (r->next[i])
+			binradix_for_each(r->next[i], d, v);
+}

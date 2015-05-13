@@ -25,6 +25,7 @@
 #define AS_LAZY 0x1
 
 #define VMA_RW 0x1
+#define VMA_HW 0x2
 
 #define PF_SHARED 1
 #define PF_SNAPSHOT 2
