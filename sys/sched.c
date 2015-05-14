@@ -98,6 +98,7 @@ struct task *new_process(struct address_space *as, struct thread_info *ti) {
 
 	new_task->kstack_base = stack_page+PAGE_SIZE;
 	new_task->as = as;
+	as->owner = new_task;
 	new_task->state = TASK_RUNNABLE;
 	new_task->file_pool = obj_pool_create(sizeof(struct request));
 	new_task->fds = fdtable_new();

@@ -1,5 +1,6 @@
 #include <sys/mm.h>
 #include <sys/interrupt.h>
+#include <sys/sched.h>
 #include <string.h>
 static struct obj_pool *page_pool = NULL;
 struct binradix_node *phys_pages;
@@ -82,6 +83,7 @@ void share_page(struct page *p) {
 	list_for_each(&p->owner, pe, owner_of) {
 		if (pe->flags & PF_HARDWARE)
 			panic("Sharing PF_HARDWARE page");
+		printk("Mapped in process %d, at %p\n", pe->as->owner->pid, pe->vaddr);
 		uint64_t *pte = ptable_get_entry_4k(pe->as->pml4, pe->vaddr);
 		if (!pte)
 			//Not actually mapped yet

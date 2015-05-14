@@ -40,11 +40,16 @@ SYSCALL(1, open_port, int, port_number) {
 SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 	disable_interrupts();
 	//Validate user addr
-	int ret = validate_range((uint64_t)buf, len);
-	if (ret) {
-		enable_interrupts();
-		return -EINVAL;
+	struct list_head *pgs = NULL;
+	if (buf || len) {
+		int ret = validate_range((uint64_t)buf, len);
+		if (ret) {
+			enable_interrupts();
+			return -EINVAL;
+		}
+		pgs = copy_from_user(buf, len);
 	}
+
 	struct request *req = obj_pool_alloc(current->file_pool);
 	req->type = REQ_REQUEST;
 	req->waited = false;
@@ -52,15 +57,17 @@ SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 	int fd = fdtable_insert(current->fds, req);
 	if (fd < 0) {
 		obj_pool_free(current->file_pool, req);
+		if (pgs)
+			obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
 		enable_interrupts();
 		return -EMFILE;
 	}
 
-	struct list_head *pgs = copy_from_user(buf, len);
 	enable_interrupts();
 
-	ret = port[port_number]->connect(req, len, pgs);
-	obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
+	int ret = port[port_number]->connect(req, len, pgs);
+	if (pgs)
+		obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
 	if (ret != 0) {
 		obj_pool_free(current->file_pool, req);
 		current->fds->file[fd] = NULL;
@@ -82,10 +89,14 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	}
 
 	//Validate user addr
-	int ret = validate_range((uint64_t)buf, len);
-	if (ret) {
-		enable_interrupts();
-		return -EINVAL;
+	struct list_head *pgs = NULL;
+	if (len || buf) {
+		int ret = validate_range((uint64_t)buf, len);
+		if (ret) {
+			enable_interrupts();
+			return -EINVAL;
+		}
+		pgs = copy_from_user(buf, len);
 	}
 
 	struct request *reqc = obj_pool_alloc(current->file_pool);
@@ -95,15 +106,17 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	int fd = fdtable_insert(current->fds, reqc);
 	if (fd < 0) {
 		obj_pool_free(current->file_pool, reqc);
+		if (pgs)
+			obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
 		enable_interrupts();
 		return -EMFILE;
 	}
 
-	struct list_head *pgs = copy_from_user(buf, len);
 	enable_interrupts();
 
-	ret = req->rops->request(reqc, len, pgs);
-	obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
+	int ret = req->rops->request(reqc, len, pgs);
+	if (pgs)
+		obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
 	if (ret != 0) {
 		obj_pool_free(current->file_pool, req);
 		current->fds->file[fd] = NULL;

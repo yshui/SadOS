@@ -5,6 +5,7 @@
 #include <elf/elf.h>
 #include <string.h>
 #include <as.h>
+#include <bitops.h>
 //.bss in init can't exceed 1MB
 char X;
 void bootstrap(int mem_rd){
@@ -68,6 +69,16 @@ int main() {
 	ti.rcx = (uint64_t)&fork_entry_here;
 	create_task(as, &ti);
 
-	exit(0);
+	int tarfsd = port_connect(2, 0, NULL);
+	get_response(tarfsd, &res);
+	char *x = (void *)ALIGN((uint64_t)res.buf, 12);
+	char *end = (void *)ALIGN_UP((uint64_t)res.buf+res.len, 12);
+	int count = 0;
+	while(x<end){
+		count += *x;
+		x += 4096;
+	}
+
+	exit(count);
 	for(;;);
 }

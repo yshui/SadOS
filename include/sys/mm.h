@@ -20,6 +20,8 @@
 #include <bitops.h>
 #include <sys/lib/binradix.h>
 
+struct task;
+
 //Mappings are not immediately reflected in page table
 //Don't use for kernel address space
 #define AS_LAZY 0x1
@@ -73,6 +75,7 @@ struct address_space {
 	struct obj_pool *pe_pool;
 	struct binradix_node *vaddr_map; // Virtual -> Physical map
 	struct vm_area *vma;
+	struct task *owner;
 	uint64_t low_addr, high_addr;
 	int as_flags;
 	void *pml4;

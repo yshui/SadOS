@@ -31,6 +31,7 @@ SYSCALL(1, asnew, int, flags) {
 		enable_interrupts();
 		return -1;
 	}
+	new_as->owner = current;
 
 	if (flags&AS_SNAPSHOT)
 		as_snapshot(new_as);

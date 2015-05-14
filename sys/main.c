@@ -182,7 +182,6 @@ __noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	printk("Serial test\n");
 	i8259_init();
 	apic_init();
-	services_init();
 	syscalls_init();
 	idt_init();
 
@@ -202,6 +201,7 @@ __noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 		       smap[i].base+smap[i].length,
 		       smap[i].type == 1 ? "Available" : "Reserved");
 	printk("tarfs in [%p:%p]\n", &_binary_tarfs_start, &_binary_tarfs_end);
+	services_init();
 	vga_text_init();
 	task_init();
 	//timer_init();
