@@ -2,6 +2,7 @@
 #include <sys/mm.h>
 #include <sys/panic.h>
 #include <sys/interrupt.h>
+#include <string.h>
 //Allocator for fixed size objects
 struct free_obj {
 	struct free_obj *next;
@@ -58,6 +59,7 @@ struct obj_pool *obj_pool_create(uint64_t size) {
 		panic("Invalid object size");
 	disable_interrupts();
 	struct obj_pool *obp = obj_pool_alloc(&meta_obj_pool);
+	memset(obp, 0, sizeof(struct obj_pool));
 	enable_interrupts();
 	obp->page_head = NULL;
 	obp->free_page = NULL;

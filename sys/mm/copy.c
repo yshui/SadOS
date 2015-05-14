@@ -134,3 +134,25 @@ int copy_to_user_simple(void *src, void *buf, size_t len) {
 	enable_interrupts();
 	return 0;
 }
+
+int copy_from_user_simple(void *src, void *dst, size_t len) {
+	if (len > 4096)
+		panic("Please use copy_from_user()");
+	disable_interrupts();
+	if (validate_range((uint64_t)src, len)) {
+		enable_interrupts();
+		return -1;
+	}
+
+	uint64_t aaddr = ALIGN((uint64_t)src, PAGE_SIZE_BIT);
+	struct page_entry *pe = get_allocated_page(current->as, aaddr);
+	if (!pe)
+		memset(dst, 0 ,len);
+	else {
+		char *ksrc = phys_to_virt(pe->p->phys_addr);
+		memcpy(dst, ksrc+(uint64_t)src-aaddr, len);
+	}
+	enable_interrupts();
+	return 0;
+
+}

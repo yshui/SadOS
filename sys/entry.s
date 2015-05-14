@@ -110,13 +110,7 @@ syscall_return:
 	popq %rsp         #switch back to user stack
 	sysretq
 
-.global ret_new_process, panic
-ret_new_process:
-	movq $0, interrupt_disabled
-	movq current, %rax
-	movl $1, 24(%rax) #current->state = task_running
-	sti
-	jmp syscall_return
+.global panic
 
 panic_msg: .ascii "Return from syscall with interrupt disabled\n\0"
 

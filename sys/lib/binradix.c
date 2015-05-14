@@ -148,12 +148,20 @@ struct binradix_node *binradix_new(void) {
 	return ret;
 }
 
-void binradix_for_each(struct binradix_node *r, void *d, visitor_fn v) {
+static void _binradix_for_each(struct binradix_node *r, void *d, visitor_fn v) {
 	if (r->data) {
 		v(r->data, d);
 		return;
 	}
 	for (int i = 0; i < 2; i++)
 		if (r->next[i])
-			binradix_for_each(r->next[i], d, v);
+			_binradix_for_each(r->next[i], d, v);
+}
+
+void binradix_for_each(struct binradix_node *r, void *d, visitor_fn v) {
+	//Skip the root node
+	if (r->next[0])
+		_binradix_for_each(r->next[0], d, v);
+	if (r->next[1])
+		_binradix_for_each(r->next[1], d, v);
 }

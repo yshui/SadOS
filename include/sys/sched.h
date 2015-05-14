@@ -20,7 +20,7 @@ struct task {
 	struct list_node tasks;
 	struct fdtable *fds;
 	struct fdtable *astable;
-	struct obj_pool *file_pool, *as_pool;
+	struct obj_pool *file_pool;
 	struct address_space *as;
 	uint32_t pid;
 	uint32_t exit_code;

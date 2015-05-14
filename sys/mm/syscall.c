@@ -24,15 +24,13 @@ static void as_snapshot(struct address_space *new_as) {
 }
 SYSCALL(1, asnew, int, flags) {
 	disable_interrupts();
-	struct address_space *new_as = obj_pool_alloc(current->as_pool);
+	struct address_space *new_as = aspace_new(0);
 	int fd = fdtable_insert(current->astable, new_as);
-	if (!fd) {
-		obj_pool_free(current->as_pool, new_as);
+	if (fd < 0) {
+		destroy_as(new_as);
 		enable_interrupts();
-		return 0;
+		return -1;
 	}
-
-	aspace_init(new_as, get_page(), 0);
 
 	if (flags&AS_SNAPSHOT)
 		as_snapshot(new_as);

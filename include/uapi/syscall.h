@@ -1,13 +1,14 @@
 #pragma once
 
-#define   NR_open_port                 0
-#define   NR_get_response              1
-#define   NR_request                   2
-#define   NR_port_connect              3
-#define   NR_asnew                     4
-#define   NR_sendpage                  5
-#define   NR_exit                      6
-#define   NR_get_thread_info           7
+#define NR_open_port        0
+#define NR_get_response     1
+#define NR_request          2
+#define NR_port_connect     3
+#define NR_asnew            4
+#define NR_sendpage         5
+#define NR_exit             6
+#define NR_get_thread_info  7
+#define NR_create_task      8
 
 //Deprecated
 #define NR_read        0

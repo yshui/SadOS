@@ -77,6 +77,7 @@ void page_ref(struct page *p) {
 
 void share_page(struct page *p) {
 	disable_interrupts();
+	printk("sharing %p\n", p->phys_addr);
 	struct page_entry *pe;
 	list_for_each(&p->owner, pe, owner_of) {
 		if (pe->flags & PF_HARDWARE)

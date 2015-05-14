@@ -4,6 +4,7 @@
 #include <thread.h>
 #include <elf/elf.h>
 #include <string.h>
+#include <as.h>
 //.bss in init can't exceed 1MB
 char X;
 void bootstrap(int mem_rd){
@@ -27,6 +28,9 @@ void bootstrap(int mem_rd){
 	free(ei);
 }
 const char q[30] = "Hello world from user space";
+void fork_entry_here(void) {
+	exit(1);
+}
 int main() {
 	struct response res;
 	struct mem_req req;
@@ -59,6 +63,11 @@ int main() {
 	vbase[3]=7;
 	struct thread_info ti;
 	get_thread_info(&ti);
+
+	int as = asnew(AS_SNAPSHOT);
+	ti.rcx = (uint64_t)&fork_entry_here;
+	create_task(as, &ti);
+
 	exit(0);
 	for(;;);
 }

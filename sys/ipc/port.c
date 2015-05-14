@@ -71,7 +71,7 @@ SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 
 SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	disable_interrupts();
-	if (rd > current->fds->max_fds || !current->fds->file[rd]) {
+	if (rd < 0 || rd > current->fds->max_fds || !current->fds->file[rd]) {
 		enable_interrupts();
 		return -EINVAL;
 	}
@@ -119,7 +119,7 @@ SYSCALL(2, get_response, int, cookie, struct response *, res) {
 		enable_interrupts();
 		return -EINVAL;
 	}
-	if (cookie > current->fds->max_fds || !current->fds->file[cookie]) {
+	if (cookie < 0 || cookie > current->fds->max_fds || !current->fds->file[cookie]) {
 		enable_interrupts();
 		return -EINVAL;
 	}

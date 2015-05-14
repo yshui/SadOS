@@ -122,9 +122,11 @@ address_space_map(uint64_t vaddr) {
 	if (!pe)
 		return 0;
 	int flags = vma_flags_to_page_flags(cvma->vma_flags);
-	if (pe->p->snap_count > 0)
+	if (pe->p->snap_count > 0) {
 		//Has snapshot, map read only
+		printk("page has snapshot, map readonly");
 		flags &= ~PTE_W;
+	}
 	map_page(pe->p->phys_addr, vaddr, cvma->page_size, flags);
 	return 1;
 }
