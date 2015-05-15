@@ -19,23 +19,6 @@
 #include "simple_syscalls.h"
 
 
-static __inline uint64_t
-syscall_4(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4) {
-	uint64_t ret;
-	register uint64_t r10 __asm__("r10") = a4;
-	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2),
-						  "d"(a3), "r"(r10): "rcx", "r11", "memory");
-	return ret;
-}
-
-#define sys4(name, type1, type2, type3, type4, rett) \
-rett name(type1 a1, type2 a2, type3 a3, type4 a4) { \
-	uint64_t ret = syscall_4(NR_##name, (uint64_t)a1, \
-			 (uint64_t)a2, (uint64_t)a3, \
-			 (uint64_t)a4); \
-	syscall_ret(ret, rett) \
-}
-
 __noreturn void exit(int status) {
 	syscall_1(NR_exit, (uint64_t)status);
 	__builtin_unreachable();

@@ -18,3 +18,5 @@ struct thread_info {
 	uint64_t rdi;
 	uint64_t rsp;
 };
+
+#define CT_SELF 1

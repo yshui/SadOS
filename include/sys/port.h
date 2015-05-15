@@ -18,13 +18,13 @@ struct request {
 };
 
 struct req_ops {
-	int (*request)(struct request *req, size_t len, struct list_head *);
+	int (*request)(struct request *req, size_t len, void *buf);
 	int (*get_response)(struct request *req, struct response *);
 	void (*drop_cookie)(struct request *req);
 };
 
 struct port_ops {
-	int (*connect)(struct request *req, size_t len, struct list_head *);
+	int (*connect)(struct request *req, size_t len, void *buf);
 	void (*drop_connection)(struct request *req);
 };
 

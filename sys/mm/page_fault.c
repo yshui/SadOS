@@ -18,7 +18,7 @@ uint64_t page_fault_handler(uint64_t err) {
 	uint64_t page = ALIGN(vaddr, PAGE_SIZE_BIT); //Align to page boundary
 	disable_interrupts();
 	struct vm_area *vma = vma_find_by_vaddr(current->as, vaddr);
-	if (!vma) {
+	if (PTR_IS_ERR(vma)) {
 		printk("User space trying to access invalid memory\n");
 		kill_current(1);
 		return 1; //Reschedule
@@ -26,7 +26,6 @@ uint64_t page_fault_handler(uint64_t err) {
 
 	struct page_entry *pe = get_allocated_page(current->as, page);
 	if (!pe) {
-		zero_page->ref_count++;
 		address_space_assign_page(current->as, zero_page, page, PF_SNAPSHOT);
 		pe = get_allocated_page(current->as, page);
 		if (!pe)
@@ -56,5 +55,4 @@ void page_fault_init(void) {
 
 	zero_page = manage_phys_page(get_phys_page());
 	memset((void *)(zero_page->phys_addr+KERN_VMBASE), 0, PAGE_SIZE);
-	zero_page->ref_count = 1; //prevent it from being freed
 }

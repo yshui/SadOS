@@ -18,6 +18,7 @@
 #include <uapi/mem.h>
 #include <bitops.h>
 #include <ipc.h>
+#include <sendpage.h>
 #include "brk.h"
 //we will align allocation to 8 bytes
 
@@ -32,20 +33,8 @@ struct _hdr {
 static struct _hdr *_free[13];
 
 void *alloc_new(size_t *s) {
-	struct mem_req mreq;
-	mreq.type = MAP_NORMAL;
-	mreq.len = *s;
-
-	long rd = port_connect(1, sizeof(mreq), &mreq);
-	if (rd < 0)
-		return NULL;
-
-	struct response res;
-	long ret = get_response(rd, &res);
-	if (ret < 0)
-		return NULL;
-	*s = res.len;
-	return res.buf;
+	*s = ALIGN_UP(*s, 12);
+	return sendpage(0, 0, 0, *s);
 }
 
 void split(int index) {

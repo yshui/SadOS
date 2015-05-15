@@ -25,8 +25,9 @@ uint64_t vma_get_base(struct vm_area *vma) {
 	return vma->vma_begin;
 }
 
-static void unassign_page(struct address_space *as, struct page_entry *pe) {
+void unassign_page(struct page_entry *pe) {
 	disable_interrupts();
+	struct address_space *as = pe->as;
 	printk("Unassign page %p(%p), ref %d\n", pe->vaddr, pe->p->phys_addr, pe->p->ref_count);
 	binradix_delete(as->vaddr_map, pe->vaddr);
 	list_del(&pe->owner_of);
@@ -34,7 +35,7 @@ static void unassign_page(struct address_space *as, struct page_entry *pe) {
 	enable_interrupts();
 
 	unmap_maybe_current(as, pe->vaddr);
-	page_unref(pe);
+	page_entry_unref(pe);
 	obj_pool_free(as->pe_pool, pe);
 }
 
@@ -122,9 +123,16 @@ address_space_map(uint64_t vaddr) {
 	if (!pe)
 		return 0;
 	int flags = vma_flags_to_page_flags(cvma->vma_flags);
+	if (pe->p->snap_count == 1 && pe->p->ref_count == 1) {
+		//I'm the only snapshot holder
+		pe->p->snap_count = 0;
+		if (!(pe->flags&PF_SNAPSHOT))
+			panic("Has snap_count but not snapshot holder");
+		pe->flags = PF_SHARED;
+	}
 	if (pe->p->snap_count > 0) {
 		//Has snapshot, map read only
-		printk("page has snapshot, map readonly");
+		printk("page has snapshot, map readonly\n");
 		flags &= ~PTE_W;
 	}
 	map_page(pe->p->phys_addr, vaddr, cvma->page_size, flags);
@@ -144,11 +152,12 @@ void address_space_assign_page_no_addr_check(struct address_space *as,
 	disable_interrupts();
 	struct page_entry *pe = get_allocated_page(as, vaddr);
 	if (pe)
-		unassign_page(as, pe);
+		unassign_page(pe);
 
 	pe = page_entry_new(as, vaddr);
 	pe->p = p;
 	pe->flags = flags;
+	p->ref_count++;
 	list_add(&p->owner, &pe->owner_of);
 	list_add(&vma->pages, &pe->siblings);
 	binradix_insert(as->vaddr_map, vaddr, pe);
@@ -168,15 +177,15 @@ void address_space_assign_page_no_addr_check(struct address_space *as,
 	enable_interrupts();
 }
 
-long address_space_assign_page_with_vma(struct address_space *as, struct vm_area *vma,
-					struct page *p, uint64_t vaddr, int flags) {
+long address_space_assign_page_with_vma(struct vm_area *vma, struct page *p,
+					uint64_t vaddr, int flags) {
 	if (!IS_ALIGNED(vaddr, PAGE_SIZE_BIT)) {
 		printk("address not aligned: %p\n", vaddr);
 		return -1;
 	}
 	if (vaddr < vma->vma_begin || vaddr >= vma->vma_begin+vma->vma_length)
 		return -2;
-	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
+	address_space_assign_page_no_addr_check(vma->as, p, vaddr, vma, flags);
 	return 0;
 }
 
@@ -189,8 +198,8 @@ long address_space_assign_page(struct address_space *as, struct page *p,
 	disable_interrupts();
 	struct vm_area *vma = vma_find_by_vaddr(as, vaddr);
 	enable_interrupts();
-	if (!vma)
-		return -2;
+	if (PTR_IS_ERR(vma))
+		return PTR_ERR(vma);
 	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
 	return 0;
 }
@@ -204,15 +213,16 @@ long address_space_assign_addr(struct address_space *as, uint64_t addr, uint64_t
 	disable_interrupts();
 	struct vm_area *vma = vma_find_by_vaddr(as, vaddr);
 	enable_interrupts();
-	if (!vma)
-		return -2;
+	if (PTR_IS_ERR(vma))
+		return PTR_ERR(vma);
 	struct page *p = manage_phys_page(addr);
 	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
+	page_unref(p, 0);
 	return 0;
 }
 
-long address_space_assign_addr_with_vma(struct address_space *as, struct vm_area *vma,
-					uint64_t addr, uint64_t vaddr, int flags) {
+long address_space_assign_addr_with_vma(struct vm_area *vma, uint64_t addr,
+					uint64_t vaddr, int flags) {
 	if (!IS_ALIGNED(vaddr, PAGE_SIZE_BIT)) {
 		printk("address not aligned: %p\n", vaddr);
 		return -1;
@@ -220,7 +230,8 @@ long address_space_assign_addr_with_vma(struct address_space *as, struct vm_area
 	if (vaddr < vma->vma_begin || vaddr >= vma->vma_begin+vma->vma_length)
 		return -2;
 	struct page *p = manage_phys_page(addr);
-	address_space_assign_page_no_addr_check(as, p, vaddr, vma, flags);
+	address_space_assign_page_no_addr_check(vma->as, p, vaddr, vma, flags);
+	page_unref(p, 0);
 	return 0;
 }
 
@@ -264,7 +275,7 @@ long address_space_assign_addr_range(struct address_space *as, uint64_t addr, ui
 			offset += cvma->vma_length;
 			cvma = cvma->next;
 		}
-		long ret = address_space_assign_addr_with_vma(as, cvma, addr+i, vaddr+i, PF_SHARED|PF_HARDWARE);
+		long ret = address_space_assign_addr_with_vma(cvma, addr+i, vaddr+i, PF_SHARED|PF_HARDWARE);
 		if (ret)
 			return ret;
 	}
@@ -279,12 +290,15 @@ insert_vma_to_vaddr(struct address_space *as, uint64_t vaddr, uint64_t len, int 
 	if (vaddr & 0xfff)
 		//address not aligned
 		return ERR_PTR(-2);
+	if (vaddr < as->low_addr || vaddr > as->high_addr)
+		return ERR_PTR(-3);
 
 	list_head_init(&vma->pages);
 	vma->vma_begin = vaddr;
 	vma->vma_length = len;
 	vma->vma_flags = flags;
 	vma->page_size = 0;
+	vma->as = as;
 
 	long ret = aspace_add_vma(as, vma);
 	if (ret < 0)
@@ -312,6 +326,7 @@ insert_vma_to_any(struct address_space *as, uint64_t len, int flags) {
 	nvma->vma_length = len;
 	nvma->page_size = 0;
 	nvma->vma_flags = flags;
+	nvma->as = as;
 	list_head_init(&nvma->pages);
 
 	if (*now)
@@ -346,7 +361,7 @@ remove_vma_range(struct address_space *as, uint64_t base, uint64_t len) {
 
 			struct page_entry *pei, *petmp;
 			list_for_each_safe(&tmp->pages, pei, petmp, siblings)
-				unassign_page(as, pei);
+				unassign_page(pei);
 			obj_pool_free(as->vma_pool, tmp);
 			continue;
 		}
@@ -358,6 +373,7 @@ remove_vma_range(struct address_space *as, uint64_t base, uint64_t len) {
 			nvma->vma_begin = base+len;
 			nvma->vma_length = now_end-nvma->vma_begin;
 			nvma->next = (*nowp)->next;
+			nvma->as = as;
 			list_head_init(&nvma->pages);
 			if (nvma->next)
 				nvma->next->prev = &nvma->next;
@@ -370,7 +386,7 @@ remove_vma_range(struct address_space *as, uint64_t base, uint64_t len) {
 					list_del(&pei->siblings);
 					list_add(&nvma->pages, &pei->siblings);
 				} else if (pei->vaddr >= base)
-					unassign_page(as, pei);
+					unassign_page(pei);
 			}
 			break;
 		}
@@ -385,7 +401,7 @@ remove_vma_range(struct address_space *as, uint64_t base, uint64_t len) {
 		list_for_each_safe(&(*nowp)->pages, pei, petmp, siblings) {
 			if (pei->vaddr < base || pei->vaddr >= base+len)
 				continue;
-			unassign_page(as, pei);
+			unassign_page(pei);
 		}
 next:
 		nowp = &(*nowp)->next;
@@ -413,7 +429,7 @@ int validate_range(uint64_t base, size_t len) {
 	struct vm_area *vma = vma_find_by_vaddr(current->as, base);
 	uint64_t xbase = base, xend = base+len;
 	do {
-		if (!vma || vma->vma_begin > base) {
+		if (PTR_IS_ERR(vma) || vma->vma_begin > base) {
 			printk("No vma mapped at %p, which is inside [%p-%p]\n", base, xbase, xend);
 			return 1;
 		}

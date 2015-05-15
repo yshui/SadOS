@@ -1,111 +1,93 @@
 #include <sys/copy.h>
 #include <sys/interrupt.h>
 #include <bitops.h>
-struct list_head *copy_from_user(void *buf, size_t len) {
+
+//Map a range of pages from user, increase their snapshot count
+struct page_list_head *map_from_user(void *buf, size_t len) {
 	disable_interrupts();
 	if (validate_range((uint64_t)buf, len)) {
 		enable_interrupts();
-		return NULL;
+		return ERR_PTR(-EINVAL);
 	}
-	//Copy data
-	//Map all the pages in the range in process
 	struct obj_pool *pg = obj_pool_create(sizeof(struct page_list));
-	struct list_head *ret = obj_pool_alloc(pg);
-	list_head_init(ret);
-	uint8_t *page = get_page();
-	uint64_t pl_offset = 0;
-	uint64_t addr = (uint64_t)buf;
-	while(len) {
-		uint64_t aaddr = ALIGN(addr, PAGE_SIZE_BIT);
-		struct page_entry *pe = get_allocated_page(current->as, aaddr);
+	struct page_list_head *res = obj_pool_alloc(pg);
+	res->ph = obj_pool_alloc(pg);
+	res->start_offset = 0;
+	res->pg = pg;
+	list_head_init(res->ph);
 
-		uint64_t offset = addr-aaddr, cp_len = PAGE_SIZE-offset;
-		uint8_t *src = pe ? phys_to_virt(pe->p->phys_addr) : NULL;
+	uint64_t abuf = ALIGN((uint64_t)buf, PAGE_SIZE_BIT);
+	res->start_offset = (uint64_t)buf-abuf;
+	if (abuf != (uint64_t)buf) {
+		char *page = get_page();
+		memset(page, 0, PAGE_SIZE);
+		memcpy(page+(uint64_t)buf-abuf, buf, abuf+PAGE_SIZE-(uint64_t)buf);
 
-		if (cp_len > len)
-			cp_len = len;
-		if (cp_len > PAGE_SIZE-pl_offset) {
-			size_t cp_len2 = PAGE_SIZE-pl_offset;
-			if (src)
-				memcpy(page+pl_offset, src+offset, cp_len2);
-			else
-				memset(page+pl_offset, 0, cp_len2);
-
-			struct page_list *pl = obj_pool_alloc(pg);
-			pl->page = page;
-			pl->pg = pg;
-			list_add_tail(ret, &pl->next);
-			page = get_page();
-
-			pl_offset = 0;
-			offset += cp_len2;
-			cp_len -= cp_len2;
-			len -= cp_len2;
-		}
-		if (src)
-			memcpy(page+pl_offset, src+offset, cp_len);
-		else
-			memset(page+pl_offset, 0, cp_len);
-		addr = aaddr+PAGE_SIZE;
-		len -= cp_len;
+		struct page_list *pl = obj_pool_alloc(pg);
+		pl->p = manage_page((uint64_t)page);
+		pl->flags = PF_SHARED;
+		list_add_tail(res->ph, &pl->next);
 	}
-	struct page_list *pl = obj_pool_alloc(pg);
-	pl->page = page;
-	pl->pg = pg;
-	list_add_tail(ret, &pl->next);
-	enable_interrupts();
-	return ret;
+
+	uint64_t end = (uint64_t)buf+len;
+	uint64_t aend = ALIGN(end, PAGE_SIZE_BIT);
+
+	for (uint64_t i = abuf; i < aend; i += PAGE_SIZE) {
+		struct page_list *pl = obj_pool_alloc(pg);
+		pl->p = NULL;
+		struct page_entry *pe = get_allocated_page(current->as, i);
+		if (pe) {
+			pl->p = pe->p;
+			pl->flags = PF_SNAPSHOT;
+			pe->p->ref_count++;
+			pe->p->snap_count++;
+		}
+		list_add_tail(res->ph, &pl->next);
+	}
+
+	if (end != aend) {
+		char *page = get_page();
+		memset(page, 0, PAGE_SIZE);
+		memcpy(page, (void *)aend, end-aend);
+		struct page_list *pl = obj_pool_alloc(pg);
+		pl->p = manage_page((uint64_t)page);
+		pl->flags = PF_SHARED;
+		list_add_tail(res->ph, &pl->next);
+	}
+	return res;
 }
 
-int copy_to_user(struct list_head *pgs, void *buf, size_t len) {
-	disable_interrupts();
-	if (validate_range((uint64_t)buf, len)) {
-		enable_interrupts();
-		return -EINVAL;
+int map_to_user(struct page_list_head *plh, uint64_t vaddr) {
+	//Map pages in page list to user space
+
+	if (!IS_ALIGNED(vaddr, PAGE_SIZE_BIT))
+		panic("Unaligned");
+
+	struct vm_area *vma;
+	if (vaddr)
+		vma = insert_vma_to_vaddr(current->as, vaddr, PAGE_SIZE*plh->npage, VMA_RW);
+	else
+		vma = insert_vma_to_any(current->as, PAGE_SIZE*plh->npage, VMA_RW);
+
+	if (PTR_IS_ERR(vma))
+		return -ENOMEM;
+
+	struct page_list *pl;
+	list_for_each(plh->ph, pl, next) {
+		address_space_assign_page_with_vma(vma, pl->p, vaddr, PF_SNAPSHOT);
+		vaddr += PAGE_SIZE;
 	}
-
-	//Copy data
-	//Map all the pages in the range in process
-	struct page_list *pl = list_top(pgs, struct page_list, next);
-	uint64_t pl_offset = 0;
-	uint64_t addr = (uint64_t)buf;
-	while(len) {
-		uint64_t aaddr = ALIGN(addr, PAGE_SIZE_BIT);
-		struct page_entry *pe = get_allocated_page(current->as, aaddr);
-		uint8_t *page = NULL;
-		if (!pe) {
-			page = get_page();
-			memset(page, 0, PAGE_SIZE);
-			struct page *p = manage_page((uint64_t)page);
-			address_space_assign_page(current->as, p, aaddr, PF_SHARED);
-		} else {
-			if (pe->p->snap_count > 0)
-				unshare_page(pe);
-			page = phys_to_virt(pe->p->phys_addr);
-		}
-
-		uint64_t offset = addr-aaddr, cp_len = PAGE_SIZE-offset;
-
-		if (cp_len > len)
-			cp_len = len;
-		if (cp_len > PAGE_SIZE-pl_offset) {
-			size_t cp_len2 = PAGE_SIZE-pl_offset;
-			if (pl->page)
-				memcpy(page+offset, pl->page+pl_offset, cp_len2);
-
-			pl = list_next(pgs, pl, next);
-			pl_offset = 0;
-			offset += cp_len2;
-			cp_len -= cp_len2;
-			len -= cp_len2;
-		}
-		if (pl->page)
-			memcpy(page+offset, pl->page+pl_offset, cp_len);
-		addr = aaddr+PAGE_SIZE;
-		len -= cp_len;
-	}
-	enable_interrupts();
 	return 0;
+}
+
+void page_list_free(struct page_list_head *plh) {
+	struct page_list *pl;
+	list_for_each(plh->ph, pl, next) {
+		if (pl->flags == PF_SNAPSHOT)
+			pl->p->snap_count--;
+		page_unref(pl->p, 0);
+	}
+	obj_pool_destroy(plh->pg);
 }
 
 int copy_to_user_simple(void *src, void *buf, size_t len) {
@@ -118,6 +100,11 @@ int copy_to_user_simple(void *src, void *buf, size_t len) {
 	}
 
 	uint64_t aaddr = ALIGN((uint64_t)buf, PAGE_SIZE_BIT);
+	uint64_t leftover = 0;
+	if ((uint64_t)buf+len > aaddr+PAGE_SIZE) {
+		leftover = (uint64_t)buf+len-aaddr-PAGE_SIZE;
+		len = aaddr+PAGE_SIZE-(uint64_t)buf;
+	}
 	struct page_entry *pe = get_allocated_page(current->as, aaddr);
 	char *page;
 	if (!pe) {
@@ -125,12 +112,28 @@ int copy_to_user_simple(void *src, void *buf, size_t len) {
 		memset(page, 0, PAGE_SIZE);
 		struct page *p = manage_page((uint64_t)page);
 		address_space_assign_page(current->as, p, aaddr, PF_SHARED);
+		page_unref(p, 0);
 	} else {
 		if (pe->p->snap_count > 0)
 			unshare_page(pe);
 		page = phys_to_virt(pe->p->phys_addr);
 	}
 	memcpy(page+((uint64_t)buf-aaddr), src, len);
+	if (leftover) {
+		pe = get_allocated_page(current->as, aaddr+PAGE_SIZE);
+		if (!pe) {
+			page = get_page();
+			memset(page, 0, PAGE_SIZE);
+			struct page *p = manage_page((uint64_t)page);
+			address_space_assign_page(current->as, p, aaddr+PAGE_SIZE, PF_SHARED);
+			page_unref(p, 0);
+		} else {
+			if (pe->p->snap_count > 0)
+				unshare_page(pe);
+			page = phys_to_virt(pe->p->phys_addr);
+		}
+		memcpy(page, src+len, leftover);
+	}
 	enable_interrupts();
 	return 0;
 }
@@ -139,18 +142,30 @@ int copy_from_user_simple(void *src, void *dst, size_t len) {
 	if (len > 4096)
 		panic("Please use copy_from_user()");
 	disable_interrupts();
+	memset(dst, 0 ,len);
 	if (validate_range((uint64_t)src, len)) {
 		enable_interrupts();
 		return -1;
 	}
 
 	uint64_t aaddr = ALIGN((uint64_t)src, PAGE_SIZE_BIT);
+	uint64_t leftover = 0;
+	if ((uint64_t)src+len > aaddr+PAGE_SIZE) {
+		leftover = (uint64_t)src+len-aaddr-PAGE_SIZE;
+		len = aaddr+PAGE_SIZE-(uint64_t)src;
+	}
 	struct page_entry *pe = get_allocated_page(current->as, aaddr);
-	if (!pe)
-		memset(dst, 0 ,len);
-	else {
+	if (pe) {
 		char *ksrc = phys_to_virt(pe->p->phys_addr);
 		memcpy(dst, ksrc+(uint64_t)src-aaddr, len);
+	}
+
+	if (leftover) {
+		pe = get_allocated_page(current->as, aaddr+PAGE_SIZE);
+		if (pe) {
+			char *ksrc = phys_to_virt(pe->p->phys_addr);
+			memcpy(dst+len, ksrc, leftover);
+		}
 	}
 	enable_interrupts();
 	return 0;

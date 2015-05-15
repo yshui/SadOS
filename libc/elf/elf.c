@@ -9,16 +9,11 @@
 #define ELFCLASS64  (2)
 #define ELFDATA2LSB (1)
 
-struct elf_info {
-	void *base;
-	struct elf64_hdr *hdr;
-};
-
 const char elf_magic[] = {
 	'\x7f', 'E', 'L', 'F',
 };
 
-struct elf_info *elf_load(char *addr) {
+struct elf_info *elf_load(const char *addr) {
 	struct elf_info *ei = malloc(sizeof(struct elf_info));
 	ei->hdr = ei->base = addr;
 	if (strncmp((char *)ei->hdr->e_ident, elf_magic, 4) != 0)
@@ -37,8 +32,8 @@ err_out:
 struct elf_section_info *elf_find_section(struct elf_info *ei, const char *name) {
 	struct elf_section_info *esi = malloc(sizeof(struct elf_section_info));
 
-	struct elf64_shdr *hdr_table = ei->base+ei->hdr->e_shoff;
-	char *strt = ei->base+hdr_table[ei->hdr->e_shstrndx].sh_offset;
+	const struct elf64_shdr *hdr_table = ei->base+ei->hdr->e_shoff;
+	const char *strt = ei->base+hdr_table[ei->hdr->e_shstrndx].sh_offset;
 
 	int i;
 	for (i = 0; i < ei->hdr->e_shnum; i++)
@@ -52,4 +47,14 @@ struct elf_section_info *elf_find_section(struct elf_info *ei, const char *name)
 	esi->section_base = ei->base+hdr_table[i].sh_offset;
 	esi->hdr = hdr_table+i;
 	return esi;
+}
+
+int elf_foreach_ph(struct elf_info *ei, void *d, ph_fn fn) {
+	const struct elf64_phdr *phdr_table = ei->base+ei->hdr->e_phoff;
+	for (int i = 0; i < ei->hdr->e_phnum; i++) {
+		int ret = fn(ei->base, phdr_table+i, d);
+		if (ret)
+			return ret;
+	}
+	return 0;
 }

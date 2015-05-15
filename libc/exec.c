@@ -15,7 +15,96 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <as.h>
+#include <sendpage.h>
+#include <thread.h>
+#include <elf/elf.h>
+#include <bitops.h>
 #include "util.h"
+
+static int mapper(const void *base, const struct elf64_phdr *ph, void *d) {
+	if (ph->p_type == PT_DYNAMIC)
+		return ENOEXEC;
+	if (ph->p_type == PT_INTERP)
+		return ENOEXEC;
+	if (ph->p_type != PT_LOAD)
+		return 0;
+
+	uint64_t begin = ph->p_vaddr;
+	uint64_t abegin = ALIGN(begin, 12);
+	uint64_t aend = ALIGN_UP(begin+ph->p_memsz, 12);
+	int as = *(int *)d;
+	char *page = sendpage(0, 0, 0, aend-abegin);
+
+	memcpy(page+(begin-abegin), base+ph->p_offset, ph->p_filesz);
+
+	void *ret = sendpage(as, (uint64_t)page, abegin, aend-abegin);
+	if ((long)ret < 0)
+		return errno;
+	return 0;
+}
+//Execute an in-memory elf image
+int execvm(const char *base, char * const* argv, char * const *environ) {
+	int as = asnew(0);
+	//Parse elf and send pages to the new address space
+	struct elf_info *ei = elf_load(base);
+	if (!ei) {
+		errno = ENOEXEC;
+		return -1;
+	}
+	int ret = elf_foreach_ph(ei, &as, mapper);
+	if (ret != 0) {
+		asdestroy(as);
+		errno = E2BIG;
+		return -1;
+	}
+
+	//Allocate memory, put argument on it, then map it as stack
+	uint64_t envsz = 0, envcnt = 0;
+	for (int i = 0; environ[i]; i++) {
+		envsz += strlen(environ[i])+1;
+		envcnt++;
+	}
+
+	uint64_t argvsz = 0, argc = 0;
+	for (int i = 0; argv[i]; i++) {
+		argvsz += strlen(argv[i])+1;
+		argc++;
+	}
+
+	uint64_t size = envsz+argvsz+(argc+envcnt+2)*8+8;
+	char *page = sendpage(0, 0, 0, ALIGN_UP(size, 12));
+	char *dataptr = page+8*(argc+envcnt+2)+8;
+	char **ptrptr = (void *)page;
+	for (int i = 0; argv[i]; i++) {
+		strcpy(dataptr, argv[i]);
+		*ptrptr = dataptr;
+		dataptr += strlen(argv[i])+1;
+		ptrptr++;
+	}
+	*ptrptr = NULL;
+	ptrptr++;
+	for (int i = 0; environ[i]; i++) {
+		strcpy(dataptr, environ[i]);
+		*ptrptr = dataptr;
+		dataptr += strlen(environ[i])+1;
+		ptrptr++;
+	}
+	*ptrptr = NULL;
+	*(uint64_t *)page = argc;
+
+	page = sendpage(as, (uint64_t)page, 0, ALIGN_UP(size, 12));
+	//Map another 1MB to stack
+	sendpage(as, 0, (uint64_t)page-0x100000, 0x100000);
+
+	//Set up thread info
+	struct thread_info ti;
+	memset(&ti, 0, sizeof(ti));
+	ti.rsp = (uint64_t)page;
+	ti.rcx = ei->hdr->e_entry;
+
+	return create_task(as, &ti, CT_SELF);
+}
 
 int execvp(const char *name, char * const* argv) {
 	char *env_path = strdup(getenv("PATH"));

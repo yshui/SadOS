@@ -19,7 +19,7 @@ void tarfs_port_init(void) {
 }
 SERVICE_INIT(tarfs_port_init, tarfs_port);
 
-int tarfs_port_connect(struct request *req, size_t len, struct list_head *x) {
+int tarfs_port_connect(struct request *req, size_t len, void *buf) {
 	req->data = NULL;
 	req->rops = &tarfs_rops;
 	return 0;
@@ -41,11 +41,13 @@ int tarfs_port_get_response(struct request *req, struct response *res) {
 		memcpy(page+(start-ustart), (void *)start, (astart-start));
 		struct page *p = manage_page((uint64_t)page);
 		address_space_assign_page(current->as, p, vaddr, PF_SHARED);
+		page_unref(p, 0);
 		vaddr += PAGE_SIZE;
 	}
 	for (int i = astart; i < aend; i+=PAGE_SIZE) {
 		struct page *p = manage_phys_page(i-(uint64_t)&physoffset);
 		address_space_assign_page(current->as, p, vaddr, PF_SNAPSHOT);
+		page_unref(p, 0); //This page has a ref_count from tarfs_init
 		vaddr += PAGE_SIZE;
 	}
 	if (aend != end) {
@@ -54,6 +56,7 @@ int tarfs_port_get_response(struct request *req, struct response *res) {
 		memcpy(page, (void *)aend, end-aend);
 		struct page *p = manage_page((uint64_t)page);
 		address_space_assign_page(current->as, p, vaddr, PF_SHARED);
+		page_unref(p, 0);
 	}
 	res->buf = (void *)(vma->vma_begin+(start-ustart));
 	res->len = end-start;

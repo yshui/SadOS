@@ -40,14 +40,13 @@ SYSCALL(1, open_port, int, port_number) {
 SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 	disable_interrupts();
 	//Validate user addr
-	struct list_head *pgs = NULL;
+	printk("port_connect(%d, %d, %p)\n", port_number, len, buf);
 	if (buf || len) {
 		int ret = validate_range((uint64_t)buf, len);
 		if (ret) {
 			enable_interrupts();
 			return -EINVAL;
 		}
-		pgs = copy_from_user(buf, len);
 	}
 
 	struct request *req = obj_pool_alloc(current->file_pool);
@@ -57,27 +56,25 @@ SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 	int fd = fdtable_insert(current->fds, req);
 	if (fd < 0) {
 		obj_pool_free(current->file_pool, req);
-		if (pgs)
-			obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
 		enable_interrupts();
 		return -EMFILE;
 	}
 
 	enable_interrupts();
 
-	int ret = port[port_number]->connect(req, len, pgs);
-	if (pgs)
-		obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
+	int ret = port[port_number]->connect(req, len, buf);
 	if (ret != 0) {
 		obj_pool_free(current->file_pool, req);
 		current->fds->file[fd] = NULL;
 		return ret;
 	}
+	printk("Return\n");
 	return fd;
 }
 
 SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	disable_interrupts();
+	printk("request(%d, %d, %p)\n", rd, len, buf);
 	if (rd < 0 || rd > current->fds->max_fds || !current->fds->file[rd]) {
 		enable_interrupts();
 		return -EINVAL;
@@ -89,14 +86,12 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	}
 
 	//Validate user addr
-	struct list_head *pgs = NULL;
 	if (len || buf) {
 		int ret = validate_range((uint64_t)buf, len);
 		if (ret) {
 			enable_interrupts();
 			return -EINVAL;
 		}
-		pgs = copy_from_user(buf, len);
 	}
 
 	struct request *reqc = obj_pool_alloc(current->file_pool);
@@ -106,28 +101,25 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	int fd = fdtable_insert(current->fds, reqc);
 	if (fd < 0) {
 		obj_pool_free(current->file_pool, reqc);
-		if (pgs)
-			obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
 		enable_interrupts();
 		return -EMFILE;
 	}
 
 	enable_interrupts();
 
-	int ret = req->rops->request(reqc, len, pgs);
-	if (pgs)
-		obj_pool_destroy(list_top(pgs, struct page_list, next)->pg);
+	int ret = req->rops->request(reqc, len, buf);
 	if (ret != 0) {
 		obj_pool_free(current->file_pool, req);
 		current->fds->file[fd] = NULL;
 		return ret;
 	}
+	printk("Return\n");
 	return fd;
 }
 
 SYSCALL(2, get_response, int, cookie, struct response *, res) {
 	disable_interrupts();
-	printk("cookie=%d\n", cookie);
+	printk("get_response(cookie=%d)\n", cookie);
 	if (validate_range((uint64_t)res, sizeof(struct response))) {
 		enable_interrupts();
 		return -EINVAL;
@@ -142,25 +134,15 @@ SYSCALL(2, get_response, int, cookie, struct response *, res) {
 		return -EBADF;
 	}
 
-	struct response *xres = get_page();
+	struct response xres;
 
-	struct obj_pool *pg = obj_pool_create(sizeof(struct page_list));
-	struct list_head *pgs = obj_pool_alloc(pg);
-	list_head_init(pgs);
-
-	struct page_list *pl = obj_pool_alloc(pg);
-	list_add(pgs, &pl->next);
-	pl->page = (void *)xres;
-	pl->pg = pg;
-
-	long ret = req->rops->get_response(req, xres);
+	long ret = req->rops->get_response(req, &xres);
 	if (ret != 0)
 		goto end;
-	ret = copy_to_user(pgs, res, sizeof(struct response));
+	ret = copy_to_user_simple(&xres, res, sizeof(struct response));
 end:
-	obj_pool_destroy(pg);
-	drop_page(xres);
 	enable_interrupts();
+	printk("return\n");
 	return ret;
 
 }

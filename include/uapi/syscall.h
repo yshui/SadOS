@@ -9,6 +9,7 @@
 #define NR_exit             6
 #define NR_get_thread_info  7
 #define NR_create_task      8
+#define NR_asdestroy        9
 
 //Deprecated
 #define NR_read        0

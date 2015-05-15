@@ -30,6 +30,15 @@ void after_switch(void) {
 	}
 	enable_interrupts();
 }
+
+static inline void load_cr3(struct address_space *as) {
+	uint64_t cr3 = ((uint64_t)as->pml4)-KERN_VMBASE;
+	uint64_t *new_pml4 = as->pml4;
+	//Update kernel mappings in the pml4
+	uint64_t *pml4hh = get_pte_addr(0x101ull<<39, 0);
+	memcpy(new_pml4+257, pml4hh, 255*8);
+	__asm__ volatile ("movq %0, %%cr3" : : "r"(cr3));
+}
 void schedule(void) {
 	//FIXME Implement the simple O(1) scheduler
 	if (interrupt_disabled)
@@ -49,14 +58,8 @@ void schedule(void) {
 
 	//next->as == NULL means kernel task
 	//Don't need to change cr3
-	if (next->as) {
-		uint64_t cr3 = ((uint64_t)next->as->pml4)-KERN_VMBASE;
-		uint64_t *new_pml4 = next->as->pml4;
-		//Update kernel mappings in the pml4
-		uint64_t *pml4hh = get_pte_addr(0x101ull<<39, 0);
-		memcpy(new_pml4+257, pml4hh, 255*8);
-		__asm__ volatile ("movq %0, %%cr3" : : "r"(cr3));
-	}
+	if (next->as)
+		load_cr3(next->as);
 	kernel_stack = (uint64_t)next->kstack_base;
 
 	if (current->state == TASK_RUNNING)
@@ -103,6 +106,7 @@ struct task *new_process(struct address_space *as, struct thread_info *ti) {
 	new_task->file_pool = obj_pool_create(sizeof(struct request));
 	new_task->fds = fdtable_new();
 	new_task->astable = fdtable_new();
+	new_task->astable->file[0] = as;
 	new_task->ti = NULL;
 
 	//We need to forge the kernel stack of this process
@@ -150,15 +154,28 @@ SYSCALL(1, get_thread_info, void *, buf) {
 
 //Create a new task with address space as, and thread_info buf
 SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
-	if (as < 0 || as > current->astable->max_fds || !current->astable->file[as])
+	//0 is this task's address space
+	if (as <= 0 || as > current->astable->max_fds || !current->astable->file[as])
 		return -EBADF;
+	disable_interrupts();
 	struct thread_info ti;
-	if (copy_from_user_simple(buf, &ti, sizeof(ti)) != 0)
+	if (copy_from_user_simple(buf, &ti, sizeof(ti)) != 0) {
+		enable_interrupts();
 		return -EINVAL;
+	}
 
 	//Remove 'as' from task's file table
 	struct address_space *_as = current->astable->file[as];
 	current->fds->file[as] = NULL;
+
+	if (flags & CT_SELF) {
+		destroy_as(current->as);
+		memcpy(current->ti, &ti, sizeof(ti));
+		current->as = _as;
+		load_cr3(_as);
+		enable_interrupts();
+		return 0;
+	}
 
 	struct task *ntask = new_process(_as, &ti);
 
@@ -174,5 +191,6 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 	ntask->priority = current->priority;
 	ntask->state = TASK_RUNNABLE;
 	list_add(&tasks, &ntask->tasks);
+	enable_interrupts();
 	return 0;
 }

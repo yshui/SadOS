@@ -5,6 +5,7 @@
 #include <sys/printk.h>
 #include <sys/interrupt.h>
 #include <sys/mm.h>
+#include <sys/aspace.h>
 #include <errno.h>
 struct port_ops mem_pops;
 struct req_ops mem_rops;
@@ -13,74 +14,66 @@ struct mem_data {
 	void *buf;
 	size_t len;
 };
-int mem_port_connect(struct request *req, size_t len, struct list_head *pgs) {
+int mem_port_connect(struct request *req, size_t len, void *buf) {
 	if (len != sizeof(struct mem_req))
 		return -EINVAL;
 
-	//pgs should have only one page
-	struct mem_req *mreq = list_top(pgs, struct page_list, next)->page;
-	if (!mreq)
-		//User send a zero page
-		//Which is invalid
+	struct mem_req mreq;
+	if (!buf || len != sizeof(mreq))
 		return -EINVAL;
-	struct obj_pool *op = obj_pool_create(sizeof(struct mem_data));
+
 	disable_interrupts();
-	struct mem_data *md = obj_pool_alloc(op);
-	md->obp = op;
-	struct vm_area *vma;
+
+	long ret = copy_from_user_simple(buf, &mreq, sizeof(mreq));
+	if (ret != 0)
+		goto end;
+
+	ret = -EINVAL;
+	if (!IS_ALIGNED(mreq.phys_addr, PAGE_SIZE_BIT))
+		goto end;
+
 	uint64_t alen = ALIGN_UP(len, PAGE_SIZE_BIT);
-	long ret = 0, ret2;
+	struct vm_area *vma;
 
-	int vma_flags = VMA_RW;
-	if (mreq->type == MAP_PHYSICAL) {
-		printk("Client asking for %p -> %p, len %d\n", mreq->phys_addr, mreq->dest_addr, mreq->len);
-		vma_flags |= VMA_HW;
-	} else
-		printk("Client asking for %p(ignored) -> %p, len %d\n", mreq->phys_addr, mreq->dest_addr, mreq->len);
+	printk("Client asking for %p -> %p, len %d\n", mreq.phys_addr, mreq.dest_addr, mreq.len);
 
-	if (mreq->dest_addr)
-		vma = insert_vma_to_vaddr(current->as, mreq->dest_addr, alen, vma_flags);
+	if (mreq.dest_addr)
+		vma = insert_vma_to_vaddr(current->as, mreq.dest_addr, alen, VMA_RW|VMA_HW);
 	else
-		vma = insert_vma_to_any(current->as, alen, vma_flags);
+		vma = insert_vma_to_any(current->as, alen, VMA_RW|VMA_HW);
+
+	ret = -ENOMEM;
 	if (PTR_IS_ERR(vma)) {
 		printk("Can't insert vma, return error\n");
-		ret = -ENOMEM;
 		goto end;
 	}
+
 	printk("Actually mapped at %p, len %d\n", vma->vma_begin, alen);
 
-	switch (mreq->type) {
-		case MAP_PHYSICAL:
-			if (!IS_ALIGNED(mreq->phys_addr, PAGE_SIZE_BIT)) {
-				ret = -EINVAL;
-				goto end;
-			}
-			ret2 = insert_range(mreq->phys_addr, alen);
-			if (ret2 < 0) {
-				ret = -EINVAL;
-				goto end;
-			}
-			ret2 = address_space_assign_addr_range(current->as, mreq->phys_addr, vma->vma_begin, alen);
-			if (ret2 < 0)
-				panic("Impossible error\n");
-			md->buf = (void *)vma->vma_begin;
-			md->len = alen;
-			break;
-		case MAP_NORMAL:
-			md->buf = (void *)vma->vma_begin;
-			md->len = alen;
-			break;
-		default:
-			obj_pool_destroy(op);
-			ret = -EINVAL;
-			goto end;
+	ret = -EINVAL;
+	if (insert_range(mreq.phys_addr, alen) < 0) {
+		*vma->prev = vma->next;
+		if (vma->next)
+			vma->next->prev = vma->prev;
+		obj_pool_free(current->as->vma_pool, vma);
+		goto end;
 	}
+
+	if (address_space_assign_addr_range(current->as, mreq.phys_addr, vma->vma_begin, alen) < 0)
+		panic("Impossible error\n");
+
+	struct obj_pool *op = obj_pool_create(sizeof(struct mem_data));
+	struct mem_data *md = obj_pool_alloc(op);
+
+	md->obp = op;
+	md->buf = (void *)vma->vma_begin;
+	md->len = alen;
 	req->data = md;
 	req->rops = &mem_rops;
-
+	ret = 0;
 end:
 	enable_interrupts();
-	printk("Ret=%d", ret);
+	printk("Ret=%d\n", ret);
 	return ret;
 }
 

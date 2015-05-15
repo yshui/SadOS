@@ -7,12 +7,20 @@
 #include <string.h>
 
 struct page_list {
-	void *page; //page == NULL means zero page
+	struct page *p;
 	struct list_node next;
+	uint64_t flags;
+};
+
+struct page_list_head {
+	uint64_t start_offset;
+	uint64_t npage;
+	struct list_head *ph;
 	struct obj_pool *pg;
 };
 
-struct list_head *copy_from_user(void *buf, size_t len);
-int copy_to_user(struct list_head *pgs, void *buf, size_t len);
+struct page_list_head *map_from_user(void *user_buf, size_t len);
+int map_to_user(struct page_list_head *plh, uint64_t vaddr);
+void page_list_free(struct page_list_head *plh);
 int copy_to_user_simple(void *src, void *user_buf, size_t len);
 int copy_from_user_simple(void *user_buf, void *dst, size_t len);

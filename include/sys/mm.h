@@ -168,17 +168,15 @@ struct vm_area *insert_vma_to_any(struct address_space *as, uint64_t len, int fl
  */
 long address_space_map(uint64_t vaddr);
 
-//assign_page didn't increase the ref_count of page, so make sure the caller
-//holds a reference count, and don't drop that after this call
+//assign_page increase the ref_count of page
 long address_space_assign_page(struct address_space *as, struct page *,
 			       uint64_t vaddr, int flags);
-long address_space_assign_page_with_vma(struct address_space *as,
-					struct vm_area *vma,
+long address_space_assign_page_with_vma(struct vm_area *vma,
 					struct page *, uint64_t vaddr, int flags);
 long address_space_assign_addr(struct address_space *as, uint64_t addr,
 			       uint64_t vaddr, int flags);
-long address_space_assign_addr_with_vma(struct address_space *as, struct vm_area *vma,
-					uint64_t addr, uint64_t len, int flags);
+long address_space_assign_addr_with_vma(struct vm_area *vma, uint64_t addr,
+					uint64_t len, int flags);
 long address_space_assign_addr_range(struct address_space *as, uint64_t addr,
 				     uint64_t vaddr, uint64_t len);
 
@@ -218,4 +216,5 @@ void share_page(struct page *);
 void unshare_page(struct page_entry *);
 
 void page_man_init(void);
-int page_unref(struct page_entry *);
+int page_unref(struct page *, int is_hw);
+int page_entry_unref(struct page_entry *);

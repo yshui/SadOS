@@ -37,7 +37,7 @@ manage_phys_page(uint64_t addr) {
 	return p;
 }
 
-static int _page_unref(struct page *p, int hw) {
+int page_unref(struct page *p, int hw) {
 	p->ref_count--;
 	if (!p->ref_count) {
 		binradix_delete(phys_pages, p->phys_addr);
@@ -52,12 +52,12 @@ static int _page_unref(struct page *p, int hw) {
 	return 0;
 }
 
-int page_unref(struct page_entry *pe) {
+int page_entry_unref(struct page_entry *pe) {
 	disable_interrupts();
 	struct page *p = pe->p;
 	if (pe->flags & PF_SNAPSHOT)
 		p->snap_count--;
-	_page_unref(pe->p, pe->flags&PF_HARDWARE);
+	page_unref(pe->p, pe->flags&PF_HARDWARE);
 	enable_interrupts();
 	return 0;
 }
@@ -95,12 +95,16 @@ void share_page(struct page *p) {
 			//Remove write permission
 			entry &= ~PTE_W;
 			*pte = entry;
+			if (pe->as == current->as)
+				invlpg(pe->vaddr);
 		}
 	}
 	enable_interrupts();
 }
 
 void unshare_page(struct page_entry *pe) {
+	if (pe->as != current->as)
+		panic("Unsharing page from un-current as\n");
 	//pe used to be a snapshot of some page
 	//Now I want to become the sole owner of
 	//this page, then, for example, I can write to it
@@ -115,8 +119,11 @@ void unshare_page(struct page_entry *pe) {
 		struct page_entry *o;
 		list_for_each(&pe->p->owner, o, owner_of) {
 			uint64_t *pte = ptable_get_entry_4k(o->as->pml4, o->vaddr);
-			if (pte && ((*pte)&PTE_P))
+			if (pte && ((*pte)&PTE_P)) {
 				*pte |= PTE_W;
+				if (o->as == current->as)
+					invlpg(o->vaddr);
+			}
 		}
 		enable_interrupts();
 		return;
@@ -163,15 +170,8 @@ void unshare_page(struct page_entry *pe) {
 	list_add(&p->owner, &pe->owner_of);
 	//Update my page table
 	unmap(pe->vaddr);
-	_page_unref(oldp, 0);
+	page_unref(oldp, 0);
 	enable_interrupts();
-}
-
-long take_snapshot(struct address_space *as, struct page_entry *pe, uint64_t vaddr) {
-	if (pe->flags & PF_HARDWARE)
-		panic("Can't take snapshot of hardware page\n");
-	pe->p->ref_count++;
-	return address_space_assign_page(as, pe->p, vaddr, PF_SNAPSHOT);
 }
 
 void page_man_init(void) {

@@ -46,6 +46,14 @@ rett name(type1 a1, type2 a2, type3 a3) { \
 	syscall_ret(ret, rett) \
 }
 
+#define sys4(name, type1, type2, type3, type4, rett) \
+rett name(type1 a1, type2 a2, type3 a3, type4 a4) { \
+	uint64_t ret = syscall_4(NR_##name, (uint64_t)a1, \
+			 (uint64_t)a2, (uint64_t)a3, \
+			 (uint64_t)a4); \
+	syscall_ret(ret, rett) \
+}
+
 struct linux_dirent;
 pid_t wait4(pid_t, int *, int, void *);
 int nanosleep(const struct timespec *req, struct timespec *rem);

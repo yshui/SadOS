@@ -32,13 +32,36 @@ struct elf64_shdr {
 	uint64_t sh_entsize;
 };
 
-struct elf_info;
+struct elf_info {
+	const void *base;
+	const struct elf64_hdr *hdr;
+};
 struct elf_section_info {
-	void *section_base;
-	struct elf64_shdr *hdr;
+	const void *section_base;
+	const struct elf64_shdr *hdr;
 };
 
+struct elf64_phdr {
+	uint32_t p_type;
+	uint32_t p_flags;
+	uint64_t p_offset;
+	uint64_t p_vaddr;
+	uint64_t p_paddr;
+	uint64_t p_filesz;
+	uint64_t p_memsz;
+	uint64_t p_align;
+};
+
+#define PT_NULL     0
+#define PT_LOAD     1
+#define PT_DYNAMIC  2
+#define PT_INTERP   3
+#define PT_NOTE     4
+
 //Load an elf, assuming addr to be the base of elf
-struct elf_info *elf_load(char *addr);
+struct elf_info *elf_load(const char *addr);
 //Get where this elf should be loaded
 struct elf_section_info *elf_find_section(struct elf_info *, const char *name);
+
+typedef int (*ph_fn)(const void *, const struct elf64_phdr *, void *);
+int elf_foreach_ph(struct elf_info *, void *d, ph_fn);

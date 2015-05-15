@@ -102,7 +102,7 @@ __noreturn void start_init(void) {
 		}
 		uint64_t phys_addr = ((uint64_t)page)-KERN_VMBASE;
 		printk("Start init: %p\n", user_addr);
-		address_space_assign_addr_with_vma(user_as, image_vma, phys_addr, user_addr, PF_SHARED);
+		address_space_assign_addr_with_vma(image_vma, phys_addr, user_addr, PF_SHARED);
 		user_addr += PAGE_SIZE;
 	}
 
