@@ -59,6 +59,7 @@ SYSCALL(1, open_port, int, port_number) {
 	up->port_number = port_number;
 
 	register_port(port_number, &uport_pops);
+	enable_interrupts();
 	return ret;
 }
 
@@ -154,7 +155,30 @@ end:
 }
 
 SYSCALL(3, respond, int, fd, size_t, len, void *, buf) {
-	return 0;
+	disable_interrupts();
+	long ret;
+	ret = -EBADF;
+	if (fd < 0 || fd >= current->fds->max_fds || !current->fds->file[fd])
+		goto end;
+	struct request *req = current->fds->file[fd];
+	if (req->type != REQ_PORT_COOKIE)
+		goto end;
+
+	ret = -EFAULT;
+	struct page_list_head *plh = map_from_user(buf, len);
+	if (!plh)
+		goto end;
+
+	current->fds->file[fd] = NULL;
+	obj_pool_free(current->file_pool, req);
+
+	struct uport_cookie *upcookie = req->data;
+	upcookie->response = plh;
+	if (upcookie->client_req->waited)
+		wake_up(upcookie->client_req->owner);
+end:
+	enable_interrupts();
+	return ret;
 }
 
 int uport_connect(int port, struct request *req, size_t len, void *buf) {
@@ -248,7 +272,6 @@ void uport_user_close(struct request *req) {
 		return;
 	}
 
-	struct request *sreq;
 	struct uport_cookie *upcookie;
 	switch(req->type) {
 		case REQ_REQUEST:

@@ -184,10 +184,24 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 	for (int i = 0; i < current->fds->max_fds; i++) {
 		if (!current->fds->file[i])
 			continue;
+
 		struct request *req = current->fds->file[i];
 		if (req->type == REQ_COOKIE)
 			continue;
-		ntask->fds->file[i] = req;
+
+		if (!req->rops->dup)
+			continue;
+
+		struct request *new_req = obj_pool_alloc(ntask->file_pool);
+		new_req->owner = ntask;
+		new_req->waited = false;
+		new_req->type = req->type;
+		if (!req->rops->dup(req, new_req)) {
+			obj_pool_free(ntask->file_pool, new_req);
+			continue;
+		}
+
+		ntask->fds->file[i] = new_req;
 	}
 	ntask->priority = current->priority;
 	ntask->state = TASK_RUNNABLE;
