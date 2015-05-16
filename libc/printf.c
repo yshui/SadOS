@@ -68,6 +68,10 @@ static inline int itoa(long a, int base, char *str, int width, int sign) {
 
 const char *fmt_err = "Invalid printf format string\n";
 
+void tmp_write(uint64_t fd, const void* buf, size_t count)
+{
+    ;
+}
 int printf(const char *format, ...) {
 	va_list val;
 	int num;
@@ -83,7 +87,7 @@ int printf(const char *format, ...) {
 		if (*format == '%') {
 			format++;
 			if (!format) {
-				write(1, fmt_err, strlen(fmt_err));
+				tmp_write(1, fmt_err, strlen(fmt_err));
 				return 0;
 			}
 			switch(*format) {
@@ -110,7 +114,7 @@ int printf(const char *format, ...) {
 				len++;
 				break;
 			default:
-				write(1, fmt_err, strlen(fmt_err));
+				tmp_write(1, fmt_err, strlen(fmt_err));
 				return 0;
 			}
 
@@ -160,7 +164,7 @@ int printf(const char *format, ...) {
 			*(pos++) = *format;
 		format++;
 	}
-	write(1, res, len);
+	tmp_write(1, res, len);
 	free(res);
 
 	return len;

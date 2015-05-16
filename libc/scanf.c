@@ -63,14 +63,14 @@ int scanf(const char *fmt, ...) {
 	int read_count = 0;
 	va_start(ap, fmt);
 	if (!readahead) {
-		int ret = read(1, &readahead, 1);
+		int ret = my_read(1, &readahead, 1);
 		errq(ret);
 	}
 
 	while(*fmt){
 		if (isspace(*fmt)) {
 			while (isspace(readahead)) {
-				int ret = read(1, &readahead, 1);
+				int ret = my_read(1, &readahead, 1);
 				errq(ret);
 			}
 		} else if (*fmt == '%') {
@@ -82,12 +82,12 @@ int scanf(const char *fmt, ...) {
 			case '%':
 				if (readahead != '%')
 					return read_count;
-				ret = read(1, &readahead, 1);
+				ret = my_read(1, &readahead, 1);
 				errq(ret);
 				break;
 			case 's':case 'd':case 'x':
 				while (isspace(readahead)) {
-					ret = read(1, &readahead, 1);
+					ret = my_read(1, &readahead, 1);
 					errq(ret);
 				}
 				if (*fmt == 's') {
@@ -95,7 +95,7 @@ int scanf(const char *fmt, ...) {
 					read_count++;
 					while(!isspace(readahead)) {
 						*(str++) = readahead;
-						ret = read(1, &readahead, 1);
+						ret = my_read(1, &readahead, 1);
 						if (ret <= 0) {
 							*str = '\0';
 							if (ret < 0)
@@ -111,10 +111,10 @@ int scanf(const char *fmt, ...) {
 					if (*fmt == 'x') {
 						base = 16;
 						if (readahead == '0') {
-							ret = read(1, &readahead, 1);
+							ret = my_read(1, &readahead, 1);
 							errq(ret);
 							if (readahead == 'x') {
-								ret = read(1, &readahead, 1);
+								ret = my_read(1, &readahead, 1);
 								errq(ret);
 							}
 						}
@@ -136,7 +136,7 @@ int scanf(const char *fmt, ...) {
 							res += readahead-'a'+10;
 						else
 							res += readahead-'0';
-						ret = read(1, &readahead, 1);
+						ret = my_read(1, &readahead, 1);
 						if (ret <= 0) {
 							*num = res;
 							if (ret < 0)
@@ -151,7 +151,7 @@ int scanf(const char *fmt, ...) {
 				chr = va_arg(ap, char *);
 				*chr = readahead;
 				read_count++;
-				ret = read(1, &readahead, 1);
+				ret = my_read(1, &readahead, 1);
 				errq(ret);
 				break;
 			default:
@@ -160,7 +160,7 @@ int scanf(const char *fmt, ...) {
 		} else {
 			if (readahead != *fmt)
 				return read_count;
-			int ret = read(1, &readahead, 1);
+			int ret = my_read(1, &readahead, 1);
 			errq(ret);
 		}
 		fmt++;

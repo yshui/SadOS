@@ -202,5 +202,5 @@ typedef struct tagHBA_CMD_HEADER
 
 uint64_t checkAllBuses(void);
 void probe_port(HBA_MEM *abar);
-uint8_t read_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t* buf);
-uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t* buf);
+uint8_t read_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, char* buf);
+uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, char* buf);

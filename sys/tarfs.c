@@ -29,6 +29,11 @@ int get_file_index(const char* fname)
     return -1;
 }
 
+int tarfs_close(struct file* fd)
+{
+    fd -> f_pos = 0;
+    return 0;
+}
 int tarfs_read(struct file *fd, void *buf, int count)
 {
     int i;
@@ -150,17 +155,17 @@ void change_format(char ch, char *str)
 void tarfs_init()
 {
     //char tarfs_name[10] = "/tarfs";
-    strcpy(super_blocks[super_block_count].file_system_name, "tarfs");
-    super_blocks[super_block_count].free_block_count = 10000;
-    super_blocks[super_block_count].block_size = 512;
-    super_blocks[super_block_count].fs_size = (struct posix_header_ustar*) (&_binary_tarfs_end) - (struct posix_header_ustar*) (&_binary_tarfs_start);
-    super_blocks[super_block_count].s_root = (&tarfs_entry[0]);
+    //strcpy(super_blocks[super_block_count].file_system_name, "tarfs");
+    //super_blocks[super_block_count].free_block_count = 10000;
+    //super_blocks[super_block_count].block_size = 512;
+    //super_blocks[super_block_count].fs_size = (struct posix_header_ustar*) (&_binary_tarfs_end) - (struct posix_header_ustar*) (&_binary_tarfs_start);
+    //super_blocks[super_block_count].s_root = (&tarfs_entry[0]);
     //root node in tarfs
     tarfs_inode[0].block_count = 1;
     tarfs_inode[0].file_len = 0;
     tarfs_inode[0].i_data[0] = 0;
-    tarfs_node_init(&tarfs_entry[0], &super_blocks[super_block_count], NULL, "/", &tarfs_inode[0]);
-    super_block_count++;
+    tarfs_node_init(&tarfs_entry[0], &super_blocks[super_block_count - 1], NULL, "/", &tarfs_inode[0]);
+    //super_block_count++;
     //the only node: root in tarfs
     tar_file_count = 1;
 

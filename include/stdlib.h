@@ -4,6 +4,7 @@
 #define _STDLIB_H
 
 #include <sys/defs.h>
+#include <vfs.h>
 
 extern __thread int errno;
 extern char **environ;
@@ -34,13 +35,14 @@ int chdir(const char *path);
 // files
 typedef int64_t ssize_t;
 enum { O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2, O_CREAT = 0x40, O_DIRECTORY = 0x10000 };
-int open(const char *pathname, int flags);
-ssize_t read(int fd, void *buf, size_t count);
-ssize_t write(int fd, const void *buf, size_t count);
+struct file* my_open(char *pathname, int flags);
+ssize_t my_read(uint64_t fd, void *buf, size_t count);
+void my_write(uint64_t fd, const void *buf, size_t count);
 enum { SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2 };
 typedef uint64_t off_t;
-off_t lseek(int fildes, off_t offset, int whence);
-int close(int fd);
+//lseek();
+//off_t lseek(int fildes, off_t offset, int whence);
+int my_close(struct file* fd);
 int pipe(int filedes[2]);
 int dup(int oldfd);
 int dup2(int oldfd, int newfd);
@@ -54,9 +56,9 @@ struct dirent
 	unsigned short d_reclen;
 	char d_name [NAME_MAX+1];
 };
-void *opendir(const char *name);
-struct dirent *readdir(void *dir);
-int closedir(void *dir);
+struct dentry_reader* opendir(char *path);
+struct dentry *readdir(struct dentry_reader* reader);
+int closedir(struct dentry_reader* dir);
 
 char *getenv(const char *);
 int putenv(char *);

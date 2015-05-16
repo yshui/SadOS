@@ -21,7 +21,7 @@
 static void *current_brk = NULL;
 
 static inline void *__brk(void *newbrk) {
-	uint64_t ret = syscall_1(SYS_brk, (uint64_t)newbrk);
+	uint64_t ret = syscall_1(NR_brk, (uint64_t)newbrk);
 	void *nowbrk = (void *)ret;
 	return nowbrk;
 }

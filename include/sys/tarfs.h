@@ -2,6 +2,7 @@
 /* Public Domain */
 #ifndef _TARFS_H
 #define _TARFS_H
+#include <vfs.h>
 
 extern char _binary_tarfs_start;
 extern char _binary_tarfs_end;
@@ -30,5 +31,8 @@ void tarfs_init();
 void ls_tarfs();
 struct file* tarfs_open(const char* pathname, int flags);
 int tarfs_read(struct file *fd, void *buf, int count);
+struct dentry* read_tarfs_dir(struct dentry_reader* reader);
+struct dentry_reader* open_tarfs_dir(char* path);
+int close_tarfs_dir(struct dentry_reader* reader);
 
 #endif

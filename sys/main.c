@@ -37,6 +37,7 @@
 #include <sys/service.h>
 #include <string.h>
 #include <sys/ahci.h>
+#include <sys/fs.h>
 #include <vfs.h>
 extern void timer_init(void);
 struct smap_t smap_buf[20];
@@ -58,6 +59,34 @@ static inline uint64_t atoi_oct(const char *str) {
 	}
 	return ans;
 }
+
+void test_fs(void)
+{
+    printk("super block size: %d\n", sizeof(struct super_block));
+    struct file* fd1 = sata_open("/x", O_CREAT);
+    fd1 = sata_open("/xxx", O_CREAT);
+    fd1 = sata_open("/yyy", O_CREAT);
+    fd1 = sata_open("/xxx/asd", O_CREAT);
+    fd1 = sata_open("/xxx/qwe", O_CREAT);
+    fd1 = sata_open("/x/zym", O_CREAT);
+    struct file* fd2 = sata_open("/x/zym", 0);
+    //printk("fd1 fd2 inode: %d %d\n", fd1 -> inode, fd2 -> inode);
+    char buf1[600] = "123456asdzxc", buf2[600] = "";
+    int count = 12;
+    //int i;
+    //for (i = 12;i < count;++i)
+    //    buf1[i] = 'x';
+    //printk("buf1: %s\n", buf1);
+
+    write_sata_wrapper(fd1, buf1, count);
+    read_sata_wrapper(fd2, buf2, count);
+    //printk("buf2: %s\n", buf2);
+    //ls_sata_fs("/");
+    //ls_sata_fs("/xxx");
+    //ls_sata_fs("/yyy");
+    //ls_sata_fs("/x");
+}
+
 __noreturn void start_init(void) {
 	//Search for /bin/init in tarfs
 	struct tar_header *thdr = (void *)&_binary_tarfs_start;
@@ -117,16 +146,16 @@ __noreturn void start_init(void) {
 	//insert_vma_to_vaddr(user_as, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT), VMA_RW);
 	//address_space_assign_addr_range(user_as, 0xb8000, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT));
 
-    uint32_t bar5 = checkAllBuses();
-    //printk("bar5: %x\n", bar5);
-    map_page(bar5, KERN_VMBASE + bar5, 1, PTE_W);
-    //map_page(AHCI_BASE, KERN_VMBASE + AHCI_BASE, 32, PTE_W);
-    HBA_MEM *abar = (HBA_MEM*) (KERN_VMBASE + bar5);
-    probe_port(abar);
-    char xx[200] = "this is a long story", yy[200] = "???";
-    write_sata(&abar -> ports[0], 0, 0, 10, (uint16_t *)xx);
-    read_sata(&abar -> ports[0], 0, 0, 10, (uint16_t* )yy);
-    printk("yy: %s\n", yy);
+    init_fs();
+    test_fs();
+    //char *test_str1 = (char *)get_page();
+    //strcpy(test_str1, "this is a long long long story");
+    //char *test_str2 = (char *)get_page();
+    //write_sata(&abar -> ports[0], 0, 0, 1, (uint16_t *)test_str1);
+    //read_sata(&abar -> ports[0], 0, 0, 1, (uint16_t* )test_str2);
+    //printk("test_str2: %s\n", test_str2);
+    //printk("size of dentry: %d\n", sizeof(dentry));
+    //printk("size of inode: %d\n", sizeof(inode));
 	//Hard coded entry point for init
 	struct task *t = new_process(user_as, entry_point, user_addr+PAGE_SIZE-8);
 	list_add(&tasks, &t->tasks);

@@ -69,10 +69,11 @@ static inline uint32_t inl( uint16_t port )
 // Start command engine
 void start_cmd(HBA_PORT *port)
 {
-    // Wait until CR (bit15) is cleared
-    while (port->cmd & HBA_PxCMD_CR);
- 
     // Set FRE (bit4) and ST (bit0)
+    // Wait until CR (bit15) is cleared
+    while (port->cmd & HBA_PxCMD_CR)
+        //printk("cmd: %d %d\n", port->cmd, port->cmd & HBA_PxCMD_CR);
+        ;
     port->cmd |= HBA_PxCMD_FRE;
     port->cmd |= HBA_PxCMD_ST; 
 }
@@ -82,19 +83,20 @@ void stop_cmd(HBA_PORT *port)
 {
     // Clear ST (bit0)
     port->cmd &= ~HBA_PxCMD_ST;
+    port->cmd &= ~HBA_PxCMD_FRE;
+    //printk("cmd before: %d\n", port->cmd);
  
     // Wait until FR (bit14), CR (bit15) are cleared
     while(1)
     {
+        //printk("cmd: %d\n", port->cmd);
         if (port->cmd & HBA_PxCMD_FR)
             continue;
         if (port->cmd & HBA_PxCMD_CR)
             continue;
         break;
-    }
- 
-    // Clear FRE (bit4)
-    port->cmd &= ~HBA_PxCMD_FRE;
+    } 
+    //printk("here.\n");
 }
 
 void port_rebase(HBA_PORT *port, int portno)
@@ -102,19 +104,22 @@ void port_rebase(HBA_PORT *port, int portno)
     printk("Port: %x\n", port);
     stop_cmd(port); // Stop command engine
  
+    uint64_t cur_addr = 0;
     // Command list offset: 1K*portno
     // Command list entry size = 32
     // Command list entry maxim count = 32
     // Command list maxim size = 32*32 = 1K per port
-    port->clb = KERN_VMBASE + AHCI_BASE + (portno<<10);
+    port->clb = AHCI_BASE + (portno<<10);
     port->clbu = 0;
-    //memset((void*)(port->clb), 0, 1024);
+    cur_addr = port -> clb + KERN_VMBASE;
+    memset((void*)cur_addr, 0, 1024);
  
     // FIS offset: 32K+256*portno
     // FIS entry size = 256 bytes per port
-    port->fb = KERN_VMBASE + AHCI_BASE + (32<<10) + (portno<<8);
+    port->fb = AHCI_BASE + (32<<10) + (portno<<8);
     port->fbu = 0;
-    //memset((void*)(port->fb), 0, 256);
+    cur_addr = port->fb + KERN_VMBASE;
+    memset((void*)cur_addr, 0, 256);
  
     // Command table offset: 40K + 8K*portno
     // Command table size = 256*32 = 8K per port
@@ -124,9 +129,10 @@ void port_rebase(HBA_PORT *port, int portno)
         cmdheader[i].prdtl = 8; // 8 prdt entries per command table
                     // 256 bytes per command table, 64+16+48+16*8
         // Command table offset: 40K + 8K*portno + cmdheader_index*256
-        cmdheader[i].ctba = KERN_VMBASE + AHCI_BASE + (40<<10) + (portno<<13) + (i<<8);
+        cmdheader[i].ctba = AHCI_BASE + (40<<10) + (portno<<13) + (i<<8);
         cmdheader[i].ctbau = 0;
-        //memset((void*)cmdheader[i].ctba, 0, 256);
+        cur_addr = cmdheader[i].ctba + KERN_VMBASE;
+        memset((void*)cur_addr, 0, 256);
     }
  
     start_cmd(port);    // Start command engine
@@ -162,7 +168,7 @@ void probe_port(HBA_MEM *abar)
             }
             else
             {
-                printk("No drive found at port %d\n", i);
+                //printk("No drive found at port %d\n", i);
             }
         }
  
@@ -256,36 +262,40 @@ int find_cmdslot(HBA_PORT *port)
     printk("Cannot find free command list entry\n");
     return -1;
 }
-uint8_t read_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t *buf)
+uint8_t read_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count,char *buf)
 {
     port->is = (uint32_t)-1;       // Clear pending interrupt bits
     int spin = 0; // Spin lock timeout counter
     int slot = find_cmdslot(port);
+    uint64_t buf_phys = (uint64_t)buf - KERN_VMBASE;
     if (slot == -1)
         return 0;
  
     HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*) (KERN_VMBASE + port->clb);
     cmdheader += slot;
     cmdheader->cfl = sizeof(FIS_REG_H2D)/sizeof(uint32_t); // Command FIS size
-    cmdheader->w = 0;       // Read from device
+    cmdheader->w = 0;       // Read device
     cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;    // PRDT entries count
  
     HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)(KERN_VMBASE + cmdheader->ctba);
-    memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) +
-        (cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
+    //memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) +
+    //    (cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
  
     int i;
     // 8K bytes (16 sectors) per PRDT
     for (i=0; i<cmdheader->prdtl-1; i++)
     {
-        cmdtbl->prdt_entry[i].dba = (uint32_t) ((uint64_t)buf & 0xffffffff);
+        cmdtbl->prdt_entry[i].dba = (uint32_t) (buf_phys & 0xffffffff);
+        cmdtbl->prdt_entry[i].dbau = (uint32_t) ( ( (buf_phys) >> 32) & 0xffffffff);
         cmdtbl->prdt_entry[i].dbc = 8*1024; // 8K bytes
         cmdtbl->prdt_entry[i].i = 1;
         buf += 4*1024;  // 4K words
         count -= 16;    // 16 sectors
     }
     // Last entry
-    cmdtbl->prdt_entry[i].dba = (uint32_t) ((uint64_t)buf & 0xffffffff);
+    cmdtbl->prdt_entry[i].dba = (uint32_t) (buf_phys & 0xffffffff);
+    cmdtbl->prdt_entry[i].dbau = (uint32_t) ( (buf_phys >> 32) & 0xffffffff);
+    //printk("dba & dbau: %p %p\n", cmdtbl ->prdt_entry[i].dba, cmdtbl -> prdt_entry[i].dbau);
     cmdtbl->prdt_entry[i].dbc = count<<9;   // 512 bytes per sector
     cmdtbl->prdt_entry[i].i = 1;
  
@@ -319,13 +329,16 @@ uint8_t read_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t cou
         return 0;
     }
  
-    port->ci = 1<<slot; // Issue command
+    port->ci = (1<<slot); // Issue command
+    //printk("PORT INFO: %x %d %d\n", port, port->ci, port->tfd);
  
     // Wait for completion
     while (1)
     {
+        //printk("Reading disk...\n");
         // In some longer duration reads, it may be helpful to spin on the DPS bit 
         // in the PxIS port field as well (1 << 5)
+        //printk("value: %d\n", (port -> ci & (1<<slot) )  );
         if ((port->ci & (1<<slot)) == 0) 
             break;
         if (port->is & HBA_PxIS_TFES)   // Task file error
@@ -345,13 +358,12 @@ uint8_t read_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t cou
     return 1;
 }
  
-uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t *buf)
+uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, char *buf)
 {
     port->is = (uint32_t)-1;       // Clear pending interrupt bits
     int spin = 0; // Spin lock timeout counter
     int slot = find_cmdslot(port);
-    if (slot == -1)
-        return 0;
+    uint64_t buf_phys = (uint64_t)buf - KERN_VMBASE;
  
     HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*) (KERN_VMBASE + port->clb);
     cmdheader += slot;
@@ -367,14 +379,17 @@ uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t co
     // 8K bytes (16 sectors) per PRDT
     for (i=0; i<cmdheader->prdtl-1; i++)
     {
-        cmdtbl->prdt_entry[i].dba = (uint32_t) ((uint64_t)buf & 0xffffffff);
+        cmdtbl->prdt_entry[i].dba = (uint32_t) (buf_phys & 0xffffffff);
+        cmdtbl->prdt_entry[i].dbau = (uint32_t) ( ( (buf_phys) >> 32) & 0xffffffff);
         cmdtbl->prdt_entry[i].dbc = 8*1024; // 8K bytes
         cmdtbl->prdt_entry[i].i = 1;
         buf += 4*1024;  // 4K words
         count -= 16;    // 16 sectors
     }
     // Last entry
-    cmdtbl->prdt_entry[i].dba = (uint32_t) ((uint64_t)buf & 0xffffffff);
+    cmdtbl->prdt_entry[i].dba = (uint32_t) (buf_phys & 0xffffffff);
+    cmdtbl->prdt_entry[i].dbau = (uint32_t) ( (buf_phys >> 32) & 0xffffffff);
+    //printk("dba & dbau: %p %p\n", cmdtbl ->prdt_entry[i].dba, cmdtbl -> prdt_entry[i].dbau);
     cmdtbl->prdt_entry[i].dbc = count<<9;   // 512 bytes per sector
     cmdtbl->prdt_entry[i].i = 1;
  
@@ -383,7 +398,7 @@ uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t co
  
     cmdfis->fis_type = FIS_TYPE_REG_H2D;
     cmdfis->c = 1;  // Command
-    cmdfis->command = ATA_CMD_READ_DMA_EX;
+    cmdfis->command = ATA_CMD_WRITE_DMA_EX;
  
     cmdfis->lba0 = (uint8_t)startl;
     cmdfis->lba1 = (uint8_t)(startl>>8);
@@ -408,13 +423,16 @@ uint8_t write_sata(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t co
         return 0;
     }
  
-    port->ci = 1<<slot; // Issue command
+    port->ci = (1<<slot); // Issue command
+    //printk("PORT INFO: %x %d %d\n", port, port->ci, port->tfd);
  
     // Wait for completion
     while (1)
     {
+        //printk("Writing disk...\n");
         // In some longer duration reads, it may be helpful to spin on the DPS bit 
         // in the PxIS port field as well (1 << 5)
+        //printk("value: %d\n", (port -> ci & (1<<slot) )  );
         if ((port->ci & (1<<slot)) == 0) 
             break;
         if (port->is & HBA_PxIS_TFES)   // Task file error
