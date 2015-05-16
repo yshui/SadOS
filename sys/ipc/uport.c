@@ -10,7 +10,7 @@ struct uport {
 };
 
 struct uport_req {
-	struct list_head consumers;
+	struct list_head clients;
 	struct list_head incoming;
 };
 
@@ -26,11 +26,36 @@ struct message {
 	struct list_node next;
 };
 
+static struct list_head port_wait_list[MAX_PORT];
+extern struct port_ops *port[];
 struct port_ops uport_pops;
 struct req_ops uport_server_rops;
 struct req_ops uport_client_rops;
 
 struct request *uport[MAX_PORT];
+
+void port_init(void) {
+	for (int i = 0; i < MAX_PORT; i++)
+		list_head_init(&port_wait_list[i]);
+}
+
+SYSCALL(1, wait_on_port, int, port_number) {
+	printk("wait on port %d", port_number);
+	disable_interrupts();
+	current->state = TASK_WAITING;
+	while(1) {
+		if (port[port_number]) {
+			printk("port %d become available\n", port_number);
+			break;
+		}
+		list_add(&port_wait_list[port_number], &current->tasks);
+		enable_interrupts();
+		schedule();
+		disable_interrupts();
+	}
+	enable_interrupts();
+	return 0;
+}
 
 SYSCALL(1, open_port, int, port_number) {
 	disable_interrupts();
@@ -59,6 +84,12 @@ SYSCALL(1, open_port, int, port_number) {
 	up->port_number = port_number;
 
 	register_port(port_number, &uport_pops);
+
+	struct task *ti, *tnxt;
+	list_for_each_safe(&port_wait_list[port_number], ti, tnxt, tasks) {
+		list_del(&ti->tasks);
+		wake_up(ti);
+	}
 	enable_interrupts();
 	return ret;
 }
@@ -74,7 +105,7 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 
 	ret = -EAGAIN;
 	struct message *msg;
-	struct response res;
+	struct urequest res;
 	if (req->type == REQ_PORT) {
 		struct uport *up = req->data;
 		if (list_empty(&up->incoming))
@@ -84,10 +115,11 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 		struct uport_req *upreq = req->data;
 		if (!list_empty(&upreq->incoming))
 			msg = list_top(&upreq->incoming, struct message, next);
-		else if (list_empty(&upreq->consumers)) {
+		else if (list_empty(&upreq->clients)) {
 			//All clients are gone
 			res.buf = NULL;
 			res.len = 0;
+			res.pid = -1;
 			if (copy_to_user_simple(&res, buf, sizeof(res)) < 0) {
 				ret = -EFAULT;
 				goto end;
@@ -106,15 +138,21 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 		goto end;
 	}
 
-	uint64_t vaddr = map_to_user(msg->plh, 0)+msg->plh->start_offset;
-	if ((long)vaddr < 0) {
-		ret = (long)vaddr;
-		goto end;
+	uint64_t vaddr = 0;
+	if (msg->plh) {
+		vaddr = map_to_user(msg->plh, 0)+msg->plh->start_offset;
+		if ((long)vaddr < 0) {
+			ret = (long)vaddr;
+			goto end;
+		}
+		res.buf = (void *)vaddr;
+		res.len = msg->plh->npage*PAGE_SIZE;
+	} else {
+		res.buf = NULL;
+		res.len = 0;
 	}
 
 	struct request *creq = msg->client_req;
-	res.buf = (void *)vaddr;
-	res.len = msg->plh->npage*PAGE_SIZE;
 	ret = copy_to_user_simple(&res, buf, sizeof(res));
 	if (ret != 0) {
 		ret = -EFAULT;
@@ -122,13 +160,16 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 		goto end;
 	}
 	list_del(&msg->next);
-	page_list_free(msg->plh);
+	if (msg->plh)
+		page_list_free(msg->plh);
+	struct task *client_task = msg->client_req->owner;
+	obj_pool_free(client_task->file_pool, msg);
 
 	if (req->type == REQ_PORT) {
 		struct uport_req *upreq = obj_pool_alloc(current->file_pool);
 		list_head_init(&upreq->incoming);
-		list_head_init(&upreq->consumers);
-		list_add(&upreq->consumers, &creq->next_req);
+		list_head_init(&upreq->clients);
+		list_add(&upreq->clients, &creq->next_req);
 		sreq->data = upreq;
 		sreq->type = REQ_PORT_REQ;
 		creq->data = sreq;
@@ -145,8 +186,10 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 
 	sreq->rops = &uport_server_rops;
 	sreq->owner = current;
-	sreq->waited = false;
+	sreq->waited_rw = 0;
 	creq->state = REQ_ESTABLISHED;
+	if (creq->waited_rw&2)
+		wake_up(creq->owner);
 
 	ret = fd;
 end:
@@ -166,15 +209,18 @@ SYSCALL(3, respond, int, fd, size_t, len, void *, buf) {
 
 	ret = -EFAULT;
 	struct page_list_head *plh = map_from_user(buf, len);
-	if (!plh)
+	if (PTR_IS_ERR(plh))
 		goto end;
 
 	current->fds->file[fd] = NULL;
 	obj_pool_free(current->file_pool, req);
 
 	struct uport_cookie *upcookie = req->data;
-	upcookie->response = plh;
-	if (upcookie->client_req->waited)
+	if (plh)
+		upcookie->response = plh;
+	else
+		upcookie->response = (void *)1;
+	if (upcookie->client_req->waited_rw&1)
 		wake_up(upcookie->client_req->owner);
 end:
 	enable_interrupts();
@@ -182,8 +228,14 @@ end:
 }
 
 int uport_connect(int port, struct request *req, size_t len, void *buf) {
-	struct page_list_head *plh = map_from_user(buf, len);
-	struct message *msg = obj_pool_alloc(plh->pg);
+	struct page_list_head *plh = NULL;
+	if (buf || len) {
+		plh = map_from_user(buf, len);
+		if (PTR_IS_ERR(plh))
+			return -EFAULT;
+	}
+
+	struct message *msg = obj_pool_alloc(current->file_pool);
 	msg->plh = plh;
 	msg->client_req = req;
 
@@ -192,11 +244,13 @@ int uport_connect(int port, struct request *req, size_t len, void *buf) {
 	req->rops = &uport_client_rops;
 	req->state = REQ_PENDING;
 	list_add_tail(&up->incoming, &msg->next);
+	if (uport[port]->waited_rw&1)
+		wake_up(uport[port]->owner);
 	return 0;
 }
 
 int uport_request(struct request *req, size_t len, void *buf) {
-	if (req->data == (void *)1)
+	if (req->state == REQ_CLOSED)
 		//Server side has closed connection
 		return -EPIPE;
 	if (req->state == REQ_PENDING)
@@ -204,10 +258,13 @@ int uport_request(struct request *req, size_t len, void *buf) {
 		return -EAGAIN;
 
 	struct request *sreq = req->data;
-	struct page_list_head *plh = map_from_user(buf, len);
-	if (!plh)
-		return -EFAULT;
-	struct message *msg = obj_pool_alloc(plh->pg);
+	struct page_list_head *plh = NULL;
+	if (buf || len) {
+		map_from_user(buf, len);
+		if (PTR_IS_ERR(plh))
+			return -EFAULT;
+	}
+	struct message *msg = obj_pool_alloc(current->file_pool);
 	msg->client_req = req;
 	msg->plh = plh;
 	req->data = msg;
@@ -216,7 +273,7 @@ int uport_request(struct request *req, size_t len, void *buf) {
 	struct uport_req *upreq = sreq->data;
 	list_add_tail(&upreq->incoming, &msg->next);
 
-	if (sreq->waited)
+	if (sreq->waited_rw&1)
 		//Wake up process
 		wake_up(sreq->owner);
 	return 0;
@@ -260,7 +317,7 @@ int uport_dup(struct request *old_req, struct request *new_req) {
 
 	struct request *sreq= old_req->data;
 	struct uport_req *upreq = sreq->data;
-	list_add(&upreq->consumers, &new_req->next_req);
+	list_add(&upreq->clients, &new_req->next_req);
 	return 0;
 }
 
@@ -268,7 +325,11 @@ void uport_user_close(struct request *req) {
 	if (req->state == REQ_PENDING) {
 		struct message *msg = req->data;
 		list_del(&msg->next);
-		page_list_free(msg->plh);
+		if (msg->plh)
+			page_list_free(msg->plh);
+
+		struct task *client_task = msg->client_req->owner;
+		obj_pool_free(client_task->file_pool, msg);
 		return;
 	}
 
@@ -296,14 +357,37 @@ void uport_user_close(struct request *req) {
 
 }
 
-int uport_user_available(struct request *req) {
-	if (req->type != REQ_COOKIE)
+int uport_user_available(struct request *req, int rw) {
+	if (req->state == REQ_CLOSED)
+		return 1;
+
+	if (req->type == REQ_REQUEST) {
+		if (rw == 2)
+			return req->state == REQ_ESTABLISHED;
 		return 0;
+	}
+
+	if (req->type != REQ_COOKIE)
+		panic("user_available() on wrong type\n");
+
 	struct uport_cookie *upcookie = req->data;
-	return !upcookie->response;
+	if (rw == 2)
+		return 0; //Can't write to a cookie
+	return upcookie->response != NULL;
 }
 
-int uport_server_available(struct request *req) {
+int uport_server_available(struct request *req, int rw) {
+	if (rw == 2) {
+		if (req->type != REQ_PORT_COOKIE)
+			//Can't respond on the port handle
+			//Or request handle
+			return 0;
+		struct uport_cookie *upcookie = req->data;
+		if (upcookie->response)
+			panic("response already sent but cookie is still here");
+		return 1;
+	}
+
 	if (req->type == REQ_PORT_COOKIE)
 		return 0;
 	if (req->type == REQ_PORT) {
@@ -327,26 +411,40 @@ void uport_server_close(struct request *req) {
 	switch (req->type) {
 		case REQ_PORT:
 			up = req->data;
-			list_for_each_safe(&up->incoming, mi, mnxt, next)
-				page_list_free(mi->plh);
+			list_for_each_safe(&up->incoming, mi, mnxt, next) {
+				if (mi->plh)
+					page_list_free(mi->plh);
+
+				struct task *client_task = mi->client_req->owner;
+				mi->client_req->state = REQ_CLOSED;
+				if (mi->client_req->waited_rw)
+					wake_up(mi->client_req->owner);
+				obj_pool_free(client_task->file_pool, mi);
+			}
 			deregister_port(up->port_number);
 			uport[up->port_number] = NULL;
 			obj_pool_free(current->file_pool, up);
 			break;
 		case REQ_PORT_REQ:
 			upreq = req->data;
-			list_for_each_safe(&upreq->consumers, ri, rnxt, next_req) {
-				ri->data = (void *)1; //The server has closed connection
+			list_for_each_safe(&upreq->clients, ri, rnxt, next_req) {
+				ri->state = REQ_CLOSED;
 				list_del(&ri->next_req);
 			}
-			list_for_each_safe(&upreq->incoming, mi, mnxt, next)
-				page_list_free(mi->plh);
+			list_for_each_safe(&upreq->incoming, mi, mnxt, next) {
+				if (mi->plh)
+					page_list_free(mi->plh);
+
+				struct task *client_task = mi->client_req->owner;
+				obj_pool_free(client_task->file_pool, mi);
+			}
 			obj_pool_free(current->file_pool, upreq);
 			break;
 		case REQ_PORT_COOKIE:
 			upcookie = req->data;
-			upcookie->client_req->data = (void *)1;
-			page_list_free(upcookie->response);
+			upcookie->client_req->state = REQ_CLOSED;
+			if (upcookie->response)
+				panic("cookie already has a response, but it's still in fdtable\n");
 			obj_pool_free(current->file_pool, upcookie);
 			break;
 		default:

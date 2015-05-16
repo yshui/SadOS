@@ -8,7 +8,8 @@
 #include <sys/copy.h>
 #include <string.h>
 #include <sys/syscall.h>
-struct list_head tasks;
+struct list_head runq;
+struct task *tasks[32767], *idle_task;
 static struct obj_pool *task_pool = NULL;
 struct task *current, *to_kill;
 uint64_t kernel_stack;
@@ -46,11 +47,17 @@ void schedule(void) {
 	if (to_kill)
 		panic("Why is to_kill set????");
 	disable_interrupts();
-	register struct task *t, *next = NULL;
-	list_for_each(&tasks, t, tasks)
-		if (t->state == TASK_RUNNABLE &&
-		    (!next || t->priority > next->priority))
-			next = t;
+	if (current->state == TASK_RUNNING) {
+		current->state = TASK_RUNNABLE;
+		list_add_tail(&runq, &current->tasks);
+	}
+	struct task *next;
+	if (!list_empty(&runq)) {
+		next = list_top(&runq, struct task, tasks);
+		list_del(&next->tasks);
+	} else
+		next = idle_task;
+	printk("%p\n", next);
 
 	printk("Next: %d, stack: %p\n", next->pid, next->krsp);
 
@@ -62,9 +69,7 @@ void schedule(void) {
 		load_cr3(next->as);
 	kernel_stack = (uint64_t)next->kstack_base;
 
-	if (current->state == TASK_RUNNING)
-		current->state = TASK_RUNNABLE;
-	else if (current->state == TASK_ZOMBIE)
+	if (current->state == TASK_ZOMBIE)
 		to_kill = current;
 	//Save current stack pointer
 	switch_to(next);
@@ -128,8 +133,8 @@ struct task *new_process(struct address_space *as, struct thread_info *ti) {
 }
 
 void task_init(void) {
-	list_head_init(&tasks);
 	task_pool = obj_pool_create(sizeof(struct task));
+	list_head_init(&runq);
 
 	//Enable syscall/sysret
 	uint64_t efer = rdmsr(MSR_EFER);
@@ -139,6 +144,15 @@ void task_init(void) {
 
 void wake_up(struct task *t) {
 	t->state = TASK_RUNNABLE;
+	list_add(&runq, &t->tasks);
+}
+
+static int available_task_slot(void) {
+	int i;
+	for (i = 0; i < 32767; i++)
+		if (!tasks[i])
+			return i;
+	return -1;
 }
 
 SYSCALL(1, exit, int, code) {
@@ -166,10 +180,10 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 
 	//Remove 'as' from task's file table
 	struct address_space *_as = current->astable->file[as];
-	current->fds->file[as] = NULL;
 
 	if (flags & CT_SELF) {
 		destroy_as(current->as);
+		current->fds->file[as] = NULL;
 		ti.r11 |= BIT(9); //Set IF
 		memcpy(current->ti, &ti, sizeof(ti));
 		current->as = _as;
@@ -177,6 +191,14 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 		enable_interrupts();
 		return 0;
 	}
+
+	int pid = available_task_slot();
+	if (pid < 0) {
+		enable_interrupts();
+		return -ENOMEM;
+	}
+
+	current->fds->file[as] = NULL;
 
 	struct task *ntask = new_process(_as, &ti);
 
@@ -194,7 +216,7 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 
 		struct request *new_req = obj_pool_alloc(ntask->file_pool);
 		new_req->owner = ntask;
-		new_req->waited = false;
+		new_req->waited_rw = 0;
 		new_req->type = req->type;
 		if (!req->rops->dup(req, new_req)) {
 			obj_pool_free(ntask->file_pool, new_req);
@@ -205,7 +227,9 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 	}
 	ntask->priority = current->priority;
 	ntask->state = TASK_RUNNABLE;
-	list_add(&tasks, &ntask->tasks);
+	ntask->pid = pid;
+	tasks[pid] = ntask;
+	list_add(&runq, &ntask->tasks);
 	enable_interrupts();
 	return 0;
 }

@@ -12,6 +12,7 @@
  *    University, unless the submitter is the copyright
  *    holder.
  */
+#include <sys/port.h>
 #include <sys/syscall.h>
 #include <sys/sbunix.h>
 #include <sys/interrupt.h>
@@ -46,13 +47,14 @@ char stack[4096];
 extern void timer_init(void);
 struct smap_t smap_buf[20];
 int ptsetup;
-struct task *idle_task(void) {
+struct task *create_idle_task(void) {
 	struct task *t = new_task();
 	t->as = NULL;
 	t->state = TASK_RUNNABLE;
-	t->pid = 1;
+	t->pid = 0;
+	tasks[0] = t;
 	t->priority = -21;
-	list_add(&tasks, &t->tasks);
+	idle_task = t;
 	return t;
 }
 static inline uint64_t atoi_oct(const char *str) {
@@ -130,8 +132,9 @@ __noreturn void start_init(void) {
 	ti.rcx = entry_point;
 	ti.rsp = user_addr+PAGE_SIZE-8;
 	struct task *t = new_process(user_as, &ti);
-	t->pid = 2;
-	list_add(&tasks, &t->tasks);
+	t->pid = 1;
+	tasks[1] = t;
+	list_add(&runq, &t->tasks);
 
 	schedule();
 
@@ -141,6 +144,7 @@ __noreturn void start_init(void) {
 		//Simply idle and wait for interrupts
 		//Interrupt handler should call schedule() when appropriate
 		__idle();
+		schedule(); //Should be called in timer
 		printk("Hey, this is idle task, nice to see you again\n");
 	}
 }
@@ -204,9 +208,10 @@ __noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	services_init();
 	vga_text_init();
 	task_init();
+	port_init();
 	//timer_init();
 	//kbd_init();
-	current = idle_task();
+	current = create_idle_task();
 	enable_interrupts();
     tarfs_init();
     //ls_tarfs("/bin");

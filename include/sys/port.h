@@ -17,6 +17,7 @@ enum req_state {
 	REQ_SERVER,
 	REQ_PENDING,
 	REQ_ESTABLISHED,
+	REQ_CLOSED,
 };
 
 struct request {
@@ -26,7 +27,7 @@ struct request {
 	void *data;
 	enum req_type type;
 	enum req_state state;
-	bool waited;
+	uint8_t waited_rw;
 };
 
 struct req_ops {
@@ -34,7 +35,7 @@ struct req_ops {
 	int (*get_response)(struct request *req, struct response *);
 	void (*drop)(struct request *req);
 	int (*dup)(struct request *old_req, struct request *new_req);
-	int (*available)(struct request *req);
+	int (*available)(struct request *req, int rw);
 };
 
 struct port_ops {
@@ -44,3 +45,4 @@ struct port_ops {
 int register_port(int port_number, struct port_ops *);
 void deregister_port(int port_number);
 int queue_response(struct request *req, size_t len, void *buf);
+void port_init(void);

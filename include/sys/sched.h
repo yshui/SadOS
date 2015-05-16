@@ -27,8 +27,9 @@ struct task {
 	int priority;
 };
 
-extern struct task *current;
-extern struct list_head tasks;
+extern struct task *current, *idle_task;
+extern struct list_head runq;
+extern struct task *tasks[];
 
 extern char syscall_return;
 

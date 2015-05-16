@@ -73,6 +73,13 @@ int main() {
 	ti.rcx = (uint64_t)&fork_entry_here;
 	create_task(as, &ti, 0);
 
-	exit(0);
+	wait_on_port(5);
+	int pd = port_connect(5, 0, NULL);
+	struct fd_set fds;
+	fd_set_set(&fds, pd);
+	wait_on(NULL, &fds, 0);
+
+	int cookie = request(pd, 5, "test");
+	close(cookie);
 	for(;;);
 }

@@ -13,6 +13,8 @@
 #define NR_close           10
 #define NR_pop_request     11
 #define NR_respond         12
+#define NR_wait_on         13
+#define NR_wait_on_port    14
 
 //Deprecated
 #define NR_read        0

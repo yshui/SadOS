@@ -10,7 +10,7 @@
 #include <sys/interrupt.h>
 #include <sys/copy.h>
 
-static struct port_ops *port[MAX_PORT];
+struct port_ops *port[MAX_PORT];
 
 struct uresponse {
 	void *buf;
@@ -25,9 +25,11 @@ struct task_list {
 
 
 SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
-	disable_interrupts();
 	//Validate user addr
 	printk("port_connect(%d, %d, %p)\n", port_number, len, buf);
+	if (!port[port_number])
+		return -ENOENT;
+	disable_interrupts();
 	if (buf || len) {
 		int ret = validate_range((uint64_t)buf, len);
 		if (ret) {
@@ -38,7 +40,7 @@ SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 
 	struct request *req = obj_pool_alloc(current->file_pool);
 	req->type = REQ_REQUEST;
-	req->waited = false;
+	req->waited_rw = 0;
 	req->owner = current;
 	int fd = fdtable_insert(current->fds, req);
 	if (fd < 0) {
@@ -87,7 +89,7 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 
 	struct request *reqc = obj_pool_alloc(current->file_pool);
 	reqc->type = REQ_COOKIE;
-	reqc->waited = false;
+	reqc->waited_rw = 0;
 	reqc->owner = req;
 	int fd = fdtable_insert(current->fds, reqc);
 	if (fd < 0) {
@@ -149,11 +151,6 @@ SYSCALL(1, close, int, fd) {
 	return 0;
 }
 
-void wait_on_requesst(struct request *req, struct task *t) {
-	t->state = TASK_WAITING;
-	req->waited = true;
-}
-
 int register_port(int port_number, struct port_ops *pops) {
 	if (port[port_number])
 		return -EBUSY;
@@ -166,3 +163,110 @@ int register_port(int port_number, struct port_ops *pops) {
 void deregister_port(int port_number) {
 	port[port_number] = NULL;
 }
+static int fds_check(int rw, struct fd_set *fds) {
+	int i;
+	for (i = 0; i < fds->nfds; i++) {
+		if (!fd_is_set(fds, i))
+			continue;
+		struct request *req = current->fds->file[i];
+		if (!req) {
+			printk("Bad file descriptor\n");
+			return -EBADF;
+		}
+		if (!req->rops->available) {
+			printk("File descriptor doesn't allow wait_on\n");
+			return -EBADF;
+		}
+		if (!req->rops->available(req, rw)) {
+			printk("File %d is not available for %s\n", i, rw == 1 ? "read" : "write");
+			fd_clear(fds, i);
+		}
+		req->waited_rw |= rw;
+	}
+	return 0;
+}
+
+SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
+	struct fd_set rfds, wfds;
+	disable_interrupts();
+	printk("Entering wait_on\n");
+	int ret;
+	rfds.nfds = 0;
+	wfds.nfds = 0;
+	if (rbuf) {
+		ret = copy_from_user_simple(rbuf, &rfds, sizeof(rfds));
+		if (ret != 0) {
+			enable_interrupts();
+			return -EFAULT;
+		}
+		if (rfds.nfds > current->fds->max_fds) {
+			enable_interrupts();
+			return -EINVAL;
+		}
+	}
+	if (wbuf) {
+		ret = copy_from_user_simple(wbuf, &wfds, sizeof(wfds));
+		if (ret != 0) {
+			enable_interrupts();
+			return -EFAULT;
+		}
+		if (wfds.nfds > current->fds->max_fds) {
+			enable_interrupts();
+			return -EINVAL;
+		}
+	}
+
+	current->state = TASK_WAITING;
+
+	struct fd_set rfds2, wfds2;
+	while (true) {
+		//Change task state
+		//Set request->waited
+		memcpy(&rfds2, &rfds, sizeof(rfds));
+		memcpy(&wfds2, &wfds, sizeof(wfds));
+		ret = fds_check(1, &rfds2);
+		if (ret != 0) {
+			enable_interrupts();
+			return ret;
+		}
+		ret = fds_check(2, &wfds2);
+		if (ret != 0) {
+			enable_interrupts();
+			return ret;
+		}
+		if (!fd_set_empty(&rfds2) || !fd_set_empty(&wfds2)) {
+			printk("Some fd is available, return\n");
+			break;
+		}
+		enable_interrupts();
+		printk("No fd available, schedule()\n");
+		schedule();
+		printk("schedule() returned\n");
+		disable_interrupts();
+	}
+	for (int i = 0; i < rfds.nfds; i++) {
+		if (!fd_is_set(&rfds, i))
+			continue;
+		struct request *req = current->fds->file[i];
+		req->waited_rw = 0;
+	}
+	for (int i = 0; i < wfds.nfds; i++) {
+		if (!fd_is_set(&wfds, i))
+			continue;
+		struct request *req = current->fds->file[i];
+		req->waited_rw = 0;
+	}
+	if (rbuf) {
+		ret = copy_to_user_simple(&rfds2, rbuf, sizeof(struct fd_set));
+		if (ret != 0)
+			ret = -EFAULT;
+	}
+	if (wbuf) {
+		ret = copy_to_user_simple(&wfds2, wbuf, sizeof(struct fd_set));
+		if (ret != 0)
+			ret = -EFAULT;
+	}
+	enable_interrupts();
+	return ret;
+}
+
