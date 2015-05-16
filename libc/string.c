@@ -14,6 +14,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <sys/printk.h>
 
 void *memcpy(void *dst0, const void *src0, size_t s) {
 	char *dst = dst0;

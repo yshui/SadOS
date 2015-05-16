@@ -29,8 +29,8 @@ unsigned int sleep(unsigned int seconds);
 unsigned int alarm(unsigned int seconds);
 
 // paths
-char *getcwd(char *buf, size_t size);
-int chdir(const char *path);
+char *my_getcwd(char *buf, size_t size);
+int my_chdir(char *path);
 
 // files
 typedef int64_t ssize_t;
@@ -40,7 +40,7 @@ ssize_t my_read(uint64_t fd, void *buf, size_t count);
 void my_write(uint64_t fd, const void *buf, size_t count);
 enum { SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2 };
 typedef uint64_t off_t;
-//lseek();
+off_t my_lseek(uint64_t fd, off_t offset, int whence);
 //off_t lseek(int fildes, off_t offset, int whence);
 int my_close(struct file* fd);
 int pipe(int filedes[2]);

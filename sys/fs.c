@@ -250,6 +250,7 @@ struct file* sata_open(const char* pathname, int flags)
     uint64_t i;
     char inode_bitmap[BLOCK_SIZE];
     struct file *fd = (struct file *)get_page();
+    fd -> fs_type = 1;
     struct inode cur_inode;
     struct dentry cur_dentry, parent_dentry;
     strcpy(fd -> fname, pathname);
@@ -316,6 +317,7 @@ int close_sata(struct file* fd)
 //read blocks from SATA
 int read_sata_wrapper(struct file* fd, void *buf, int count)
 {
+    //printk("IN READ SATA WRAPPER.\n");
     int i;
     char *buf_ptr = (char *)buf;
     struct inode cur_inode_instance;
@@ -336,6 +338,7 @@ int read_sata_wrapper(struct file* fd, void *buf, int count)
     {
         //printk("Reading a single block.\n");
         get_data((uint64_t) cur_inode -> i_data[first_block_index], buf_ptr, fd -> f_pos % BLOCK_SIZE, count);
+        fd -> f_pos += count;
         return count;
     }
     get_data((uint64_t) (cur_inode -> i_data[first_block_index]), buf_ptr, fd -> f_pos % BLOCK_SIZE, BLOCK_SIZE - fd -> f_pos % BLOCK_SIZE);
@@ -421,9 +424,9 @@ struct dentry* read_root_dir(struct dentry_reader* reader)
     if (reader -> offset == 2)
         return NULL;
     if (reader -> offset == 0)
-        strcpy(cur_dentry.d_iname, "tarfs");
+        strcpy(cur_dentry.d_iname, "/tarfs");
     else if (reader -> offset == 1)
-        strcpy(cur_dentry.d_iname, "sata");
+        strcpy(cur_dentry.d_iname, "/sata");
     reader -> offset++;
     return &cur_dentry;
 }

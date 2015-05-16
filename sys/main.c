@@ -61,14 +61,15 @@ static inline uint64_t atoi_oct(const char *str) {
 	return ans;
 }
 
-void ls(char *pathname)
+void ls(const char *pathname)
 {
-    printk("In ls here.\n");
-    struct dentry_reader* p = my_opendir(pathname);
+    printk("In ls here: %s\n", pathname);
+    struct dentry_reader* p = my_opendir((char*)pathname);
+    //struct dentry_reader *p = NULL;
     struct dentry *de;
     if (p == NULL)
     {
-        printk("Cannot open directory.\n");
+        printk("Cannot open directory %s.\n", pathname);
         return;
     }
     do {
@@ -78,36 +79,84 @@ void ls(char *pathname)
     }
     while(de);
 }
+
+void cat(char* pathname)
+{
+    char cur_dir[200] = {0};
+    if (pathname[0] != '/')
+    {
+        my_getcwd(cur_dir, 199);
+        int len = strlen(cur_dir);
+        if (cur_dir[len - 1] != '/')
+            strcat(cur_dir, "/");
+    }
+    strcat(cur_dir, pathname);
+    //printk("Real path name for cat: %s\n", cur_dir);
+    struct file* fd = my_open(cur_dir, 0);
+    if (fd == NULL)
+    {
+        printk("Error: file doesn't exist\n");
+        return;
+    }
+    uint64_t fd_int = (uint64_t) fd;
+    char buf[513];
+
+    while (my_read(fd_int, buf, 513) != 0)
+        printk("%s", buf);
+    printk("\n");
+}
 void test_fs(void)
 {
     //printk("super block size: %d\n", sizeof(struct super_block));
     struct file* fd1 = sata_open("/x", O_CREAT);
-    fd1 = sata_open("/xxx", O_CREAT);
-    fd1 = sata_open("/yyy", O_CREAT);
-    fd1 = sata_open("/xxx/asd", O_CREAT);
-    fd1 = sata_open("/xxx/qwe", O_CREAT);
-    fd1 = sata_open("/x/zym", O_CREAT);
-    struct file* fd2 = sata_open("/x/zym", 0);
-    printk("fd1 fd2 inode: %d %d\n", fd1 -> inode, fd2 -> inode);
-    char buf1[600] = "123456asdzxc", buf2[600] = "";
+    fd1 = sata_open("/d1", O_CREAT);
+    fd1 = sata_open("/d2", O_CREAT);
+    fd1 = sata_open("/d1/f1", O_CREAT);
+    fd1 = sata_open("/d1/f2", O_CREAT);
+    fd1 = sata_open("/d2/f1", O_CREAT);
+    fd1 = sata_open("/d1/zym", O_CREAT);
+    struct file* fd2 = sata_open("/d1/zym", 0);
+    //printk("fd1 fd2 inode: %d %d\n", fd1 -> inode, fd2 -> inode);
+    char buf1[100] = "123456asdzxc", buf2[100] = "";
     int count = 12;
     //int i;
     //for (i = 12;i < count;++i)
     //    buf1[i] = 'x';
     //printk("buf1: %s\n", buf1);
 
-    write_sata_wrapper(fd1, buf1, count);
+    my_write((uint64_t) fd1, buf1, count);
+    //write_sata_wrapper(fd1, buf1, count);
     read_sata_wrapper(fd2, buf2, count);
-    printk("buf2: %s\n", buf2);
+    //printk("buf2: %s\n", buf2);
 
     //ls_sata_fs("/xxx");
     //ls_sata_fs("/yyy");
     //ls_sata_fs("/x");
-    ls("/");
-    ls("/sata/xxx");
-    ls("/sata/");
-    ls("/tarfs/");
-    ls("/asd/");
+    //ls("/");
+    ls("/sata/d1");
+    ls("/sata/d2");
+    ls("/tarfs");
+    //ls("/asd");
+    char tmp[200] = "tarfs", cur_path[200];
+    my_getcwd(cur_path, 199);
+    printk("current path: %s\n", cur_path);
+    //cat("/tarfs/test/x");
+    //printk("tmp: %s\n", tmp);
+    my_chdir(tmp);
+    strcpy(tmp, "test");
+    my_chdir(tmp);
+    strcpy(tmp, "x");
+    cat(tmp);
+    strcpy(tmp, "..");
+    my_chdir(tmp);
+    strcpy(tmp, "..");
+    my_chdir(tmp);
+    strcpy(tmp, "sata");
+    my_chdir(tmp);
+    strcpy(tmp, "d1");
+    my_chdir(tmp);
+    strcpy(tmp, "zym");
+    cat(tmp);
 }
 
 __noreturn void start_init(void) {

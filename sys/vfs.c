@@ -5,14 +5,84 @@
 #include <sys/fs.h>
 #include <sys/tarfs.h>
 
+char cwd[200] = "/";
+char root[10] = "/", tarfs[200] = "/tarfs", sata[200] = "/sata";
+void str_shift(char *str, int pos)
+{
+    int i;
+    for (i = pos;str[i];++i)
+        str[i - pos] = str[i];
+    str[i - pos] = '\0';
+}
+//int strncmp(char *a, const char *b, int count)
+//{
+//    int i;
+//    printk("str cmp: %s %s\n", a, b);
+//    for (i = 0;i < count;++i)
+//    {
+//        if (a[i] < b[i])
+//            return -1;
+//        else if (a[i] > b[i])
+//            return 1;
+//    }
+//    return 0;
+//}
+//there should be a working DIR for each process
+char *my_getcwd(char *buf, size_t size)
+{
+    strcpy(buf, cwd);
+    return buf;
+}
+void to_parent(char *path)
+{
+    int i, len = strlen(path);
+    if (!strcmp(path, "/"))
+        return;
+    else
+    {
+        for (i = len - 1;i >= 0;--i)
+            if (path[i] == '/')
+                break;
+        path[i] = '\0';
+    }
+}
+int my_chdir(char* path)
+{
+    //printk("changing DIR: %s %s\n", path, cwd);
+    if (strlen(path) == 0)
+        return 0;
+    if (!strcmp(path, "..") )
+    {
+        strcpy(path, cwd);
+        int i, len = strlen(path);
+        for (i = len - 1;i >= 0;--i)
+            if (path[i] == '/')
+                break;
+        path[i] = '\0';
+        strcpy(cwd, path);
+    }
+    //absolute path
+    else if (path[0] == '/')
+        strcpy(cwd, path);
+    else
+    {
+        int len = strlen(cwd);
+        if (cwd[len - 1] != '/')
+            strcat(cwd, "/");
+        strcat(cwd, path);
+    }
+    //printk("New current path: %s\n", cwd);
+    return 0;
+}
+
 //check if current path is the root of a file system
 int get_fs_index(char *str)
 {
-    if (strncmp(str, "/tarfs", 6) == 0)
+    if (strncmp(str, tarfs, 6) == 0)
         return 0;
-    else if (strncmp(str, "/sata", 5) == 0)
+    else if (strncmp(str, sata, 5) == 0)
         return 1;
-    else if (strcmp(str, "/") == 0)
+    else if (strcmp(str, root) == 0)
         return 2;
     //int i;
     //for (i = 0;i < super_block_count;++i)
@@ -21,22 +91,22 @@ int get_fs_index(char *str)
     return -1;
 }
 
-void str_shift(char *str, int pos)
+void parse_path(char *pathname)
 {
-    int i;
-    for (i = pos;str[i];++i)
-        str[i - pos] = str[i];
-    str[i - pos] = '\0';
-}
-void parse_path(char *name)
-{
-    if (!strncmp(name, "/tarfs", 6) )
+    //printk("name:%s\n", pathname);
+    if (!strncmp(pathname, tarfs, 6) )
     {
-        str_shift(name, 6);
+        //printk("IN TARFS!\n");
+        str_shift(pathname, 6);
     }
-    else if (!strncmp(name, "/sata", 5))
+    else if (!strncmp(pathname, sata, 5))
     {
-        str_shift(name, 5);
+        str_shift(pathname, 5);
+    }
+    if (strlen(pathname) == 0)
+    {
+        pathname[0] = '/';
+        pathname[1] = '\0';
     }
 }
 
@@ -49,6 +119,7 @@ int my_close(struct file* fd)
 ssize_t my_read(uint64_t fd_int, void *buf, size_t count)
 {
     struct file* fd = (struct file*)fd_int;
+    //printk("FS TYPE: %d\n", fd->fs_type);
     if (fd -> fs_type == 0)
         return tarfs_read(fd, buf, count);
     else if (fd -> fs_type == 1)
@@ -91,6 +162,28 @@ struct dentry_reader *my_opendir(char *name)
         reader -> fs_type = fs_type;
     return reader;
 }
+struct file* my_open(char *pathname, int flags)
+{
+    int fs_type = get_fs_index(pathname);
+    parse_path(pathname);
+    printk("file name after parsing: %s\n", pathname);
+    struct file* fd;
+    //printk("fs type: %d\n", fs_type);
+
+    if (fs_type == 0)
+        fd = tarfs_open(pathname, flags);
+    else if (fs_type == 1)
+        fd = sata_open(pathname, flags);
+    else
+        fd = NULL;
+    if (fd == NULL)
+    {
+        printk("Error opening file %s.\n", pathname);
+        return NULL;
+    }
+    fd -> fs_type = fs_type;
+    return fd;
+}
 struct dentry* my_readdir(struct dentry_reader* dentry_reader)
 {
     //the only exception
@@ -129,22 +222,16 @@ struct dentry* sata_get_dentry(struct dentry* cur_dentry, char *path_part)
     return NULL;
 }
 
-struct file* my_open(char *pathname, int flags)
+off_t my_lseek(uint64_t fd_int, off_t offset, int whence)
 {
-    int fs_type = get_fs_index(pathname);
-    parse_path(pathname);
-    struct file* fd;
-    printk("file name after parsing: %s\n", pathname);
-
-    if (fs_type == 0)
-        fd = tarfs_open(pathname, flags);
-    else if (fs_type == 1)
-        fd = sata_open(pathname, flags);
-    else
-        fd = NULL;
-    if (fd == NULL)
-        printk("Error opening file %s.\n", pathname);
-    return fd;
+    struct file* fd = (struct file*)fd_int;
+    if (whence == SEEK_SET) 
+        fd -> f_pos = offset;
+    else if (whence == SEEK_CUR)
+        fd -> f_pos += offset;
+    else if (whence == SEEK_END)
+        fd -> f_pos = fd -> inode -> file_len + offset;
+    return fd -> f_pos;
 }
 //parsing the given path
 //determine the file system, then determine the path
