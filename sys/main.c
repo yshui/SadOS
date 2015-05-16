@@ -39,6 +39,7 @@
 #include <sys/ahci.h>
 #include <sys/fs.h>
 #include <vfs.h>
+#include <stdlib.h>
 extern void timer_init(void);
 struct smap_t smap_buf[20];
 int ptsetup;
@@ -60,9 +61,26 @@ static inline uint64_t atoi_oct(const char *str) {
 	return ans;
 }
 
+void ls(char *pathname)
+{
+    printk("In ls here.\n");
+    struct dentry_reader* p = my_opendir(pathname);
+    struct dentry *de;
+    if (p == NULL)
+    {
+        printk("Cannot open directory.\n");
+        return;
+    }
+    do {
+        de = my_readdir(p);
+        if (de)
+            printk("%s\n", de->d_iname);
+    }
+    while(de);
+}
 void test_fs(void)
 {
-    printk("super block size: %d\n", sizeof(struct super_block));
+    //printk("super block size: %d\n", sizeof(struct super_block));
     struct file* fd1 = sata_open("/x", O_CREAT);
     fd1 = sata_open("/xxx", O_CREAT);
     fd1 = sata_open("/yyy", O_CREAT);
@@ -70,7 +88,7 @@ void test_fs(void)
     fd1 = sata_open("/xxx/qwe", O_CREAT);
     fd1 = sata_open("/x/zym", O_CREAT);
     struct file* fd2 = sata_open("/x/zym", 0);
-    //printk("fd1 fd2 inode: %d %d\n", fd1 -> inode, fd2 -> inode);
+    printk("fd1 fd2 inode: %d %d\n", fd1 -> inode, fd2 -> inode);
     char buf1[600] = "123456asdzxc", buf2[600] = "";
     int count = 12;
     //int i;
@@ -80,11 +98,16 @@ void test_fs(void)
 
     write_sata_wrapper(fd1, buf1, count);
     read_sata_wrapper(fd2, buf2, count);
-    //printk("buf2: %s\n", buf2);
-    //ls_sata_fs("/");
+    printk("buf2: %s\n", buf2);
+
     //ls_sata_fs("/xxx");
     //ls_sata_fs("/yyy");
     //ls_sata_fs("/x");
+    ls("/");
+    ls("/sata/xxx");
+    ls("/sata/");
+    ls("/tarfs/");
+    ls("/asd/");
 }
 
 __noreturn void start_init(void) {
@@ -147,6 +170,7 @@ __noreturn void start_init(void) {
 	//address_space_assign_addr_range(user_as, 0xb8000, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT));
 
     init_fs();
+    tarfs_init();
     test_fs();
     //char *test_str1 = (char *)get_page();
     //strcpy(test_str1, "this is a long long long story");

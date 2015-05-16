@@ -31,9 +31,13 @@ void str_shift(char *str, int pos)
 void parse_path(char *name)
 {
     if (!strncmp(name, "/tarfs", 6) )
+    {
         str_shift(name, 6);
+    }
     else if (!strncmp(name, "/sata", 5))
+    {
         str_shift(name, 5);
+    }
 }
 
 int my_close(struct file* fd)
@@ -64,7 +68,7 @@ void my_write(uint64_t fd_int, const void *buf, size_t count)
         printk("Cannot write file\n");
 }
 
-struct dentry_reader *my_open_dir(char *name)
+struct dentry_reader *my_opendir(char *name)
 {
     int fs_type = get_fs_index(name);
     struct dentry_reader *reader = NULL;

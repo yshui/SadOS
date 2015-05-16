@@ -56,9 +56,9 @@ struct dirent
 	unsigned short d_reclen;
 	char d_name [NAME_MAX+1];
 };
-struct dentry_reader* opendir(char *path);
-struct dentry *readdir(struct dentry_reader* reader);
-int closedir(struct dentry_reader* dir);
+struct dentry_reader* my_opendir(char *path);
+struct dentry *my_readdir(struct dentry_reader* reader);
+int my_closedir(struct dentry_reader* dir);
 
 char *getenv(const char *);
 int putenv(char *);

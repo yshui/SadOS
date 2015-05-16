@@ -424,6 +424,7 @@ struct dentry* read_root_dir(struct dentry_reader* reader)
         strcpy(cur_dentry.d_iname, "tarfs");
     else if (reader -> offset == 1)
         strcpy(cur_dentry.d_iname, "sata");
+    reader -> offset++;
     return &cur_dentry;
 }
 
