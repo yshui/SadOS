@@ -14,7 +14,7 @@ struct mem_data {
 	void *buf;
 	size_t len;
 };
-int mem_port_connect(struct request *req, size_t len, void *buf) {
+int mem_port_request(struct request *req, size_t len, void *buf) {
 	if (len != sizeof(struct mem_req))
 		return -EINVAL;
 
@@ -90,6 +90,16 @@ int mem_port_get_response(struct request *req, struct response *res) {
 	obj_pool_destroy(md->obp);
 	return 0;
 }
+
+void mem_port_close(struct request *req) {
+	if (!req->data)
+		return;
+	struct mem_data *md = req->data;
+	obj_pool_destroy(md->obp);
+}
+int mem_port_connect(int port, struct request *req, size_t len, void *buf) {
+	return mem_port_request(req, len, buf);
+}
 void mem_service_init(void){
 	printk("Memory port init\n");
 	register_port(1, &mem_pops);
@@ -99,6 +109,7 @@ struct port_ops mem_pops = {
 	.connect = mem_port_connect,
 };
 struct req_ops mem_rops = {
-	.request = mem_port_connect,
+	.request = mem_port_request,
 	.get_response = mem_port_get_response,
+	.drop = mem_port_close,
 };

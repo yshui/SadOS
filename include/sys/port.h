@@ -3,30 +3,44 @@
 #include <sys/list.h>
 #include <uapi/port.h>
 
+#define MAX_PORT 4096
+
 enum req_type {
 	REQ_COOKIE,
 	REQ_REQUEST,
+	REQ_PORT,
+	REQ_PORT_REQ,
+	REQ_PORT_COOKIE,
+};
+
+enum req_state {
+	REQ_SERVER,
+	REQ_PENDING,
+	REQ_ESTABLISHED,
 };
 
 struct request {
-	enum req_type type;
-	bool waited;
 	struct list_node next_req;
 	void *owner;
 	struct req_ops *rops;
 	void *data;
+	enum req_type type;
+	enum req_state state;
+	bool waited;
 };
 
 struct req_ops {
 	int (*request)(struct request *req, size_t len, void *buf);
 	int (*get_response)(struct request *req, struct response *);
-	void (*drop_cookie)(struct request *req);
+	void (*drop)(struct request *req);
+	int (*dup)(struct request *old_req, struct request *new_req);
+	int (*available)(struct request *req);
 };
 
 struct port_ops {
-	int (*connect)(struct request *req, size_t len, void *buf);
-	void (*drop_connection)(struct request *req);
+	int (*connect)(int port, struct request *req, size_t len, void *buf);
 };
 
 int register_port(int port_number, struct port_ops *);
+void deregister_port(int port_number);
 int queue_response(struct request *req, size_t len, void *buf);

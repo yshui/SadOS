@@ -20,7 +20,8 @@ struct page_list_head {
 };
 
 struct page_list_head *map_from_user(void *user_buf, size_t len);
-int map_to_user(struct page_list_head *plh, uint64_t vaddr);
+uint64_t map_to_user(struct page_list_head *plh, uint64_t vaddr);
+uint64_t map_to_user_as(struct address_space *, struct page_list_head *, uint64_t vaddr);
 void page_list_free(struct page_list_head *plh);
 int copy_to_user_simple(void *src, void *user_buf, size_t len);
 int copy_from_user_simple(void *user_buf, void *dst, size_t len);

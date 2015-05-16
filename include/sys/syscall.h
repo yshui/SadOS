@@ -14,6 +14,7 @@
  */
 #pragma once
 #include <sys/defs.h>
+#include <sys/sched.h>
 #include <uapi/syscall.h>
 struct syscall_metadata {
 	void *ptr;

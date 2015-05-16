@@ -57,7 +57,7 @@ struct page_list_head *map_from_user(void *buf, size_t len) {
 	return res;
 }
 
-int map_to_user(struct page_list_head *plh, uint64_t vaddr) {
+uint64_t map_to_user_as(struct address_space *as, struct page_list_head *plh, uint64_t vaddr) {
 	//Map pages in page list to user space
 
 	if (!IS_ALIGNED(vaddr, PAGE_SIZE_BIT))
@@ -65,9 +65,9 @@ int map_to_user(struct page_list_head *plh, uint64_t vaddr) {
 
 	struct vm_area *vma;
 	if (vaddr)
-		vma = insert_vma_to_vaddr(current->as, vaddr, PAGE_SIZE*plh->npage, VMA_RW);
+		vma = insert_vma_to_vaddr(as, vaddr, PAGE_SIZE*plh->npage, VMA_RW);
 	else
-		vma = insert_vma_to_any(current->as, PAGE_SIZE*plh->npage, VMA_RW);
+		vma = insert_vma_to_any(as, PAGE_SIZE*plh->npage, VMA_RW);
 
 	if (PTR_IS_ERR(vma))
 		return -ENOMEM;
@@ -77,7 +77,11 @@ int map_to_user(struct page_list_head *plh, uint64_t vaddr) {
 		address_space_assign_page_with_vma(vma, pl->p, vaddr, PF_SNAPSHOT);
 		vaddr += PAGE_SIZE;
 	}
-	return 0;
+	return vma->vma_begin;
+}
+
+uint64_t map_to_user(struct page_list_head *plh, uint64_t vaddr) {
+	return map_to_user_as(current->as, plh, vaddr);
 }
 
 void page_list_free(struct page_list_head *plh) {

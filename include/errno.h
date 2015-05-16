@@ -19,9 +19,12 @@
 #define   E2BIG        7
 #define   ENOEXEC      8
 #define   EBADF        9
+#define   EAGAIN       11
 #define   ENOMEM       12
 #define   EACCES       13
+#define   EFAULT       14
 #define   EBUSY        16
 #define   EINVAL       22
 #define   EMFILE       24
+#define   EPIPE        32
 #define   EADDRINUSE   67

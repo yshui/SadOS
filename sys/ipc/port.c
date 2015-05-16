@@ -10,7 +10,7 @@
 #include <sys/interrupt.h>
 #include <sys/copy.h>
 
-static struct port_ops *port[4096];
+static struct port_ops *port[MAX_PORT];
 
 struct uresponse {
 	void *buf;
@@ -23,19 +23,6 @@ struct task_list {
 	struct list_node next;
 };
 
-struct uport {
-	enum req_type type;
-	struct list_head incoming;
-	struct list_head response;
-	struct obj_pool *res_pool;
-	struct list_head consumers;
-};
-
-//int __attribute__((section("syscall")))
-SYSCALL(1, open_port, int, port_number) {
-	printk("Open port %d\n", port_number);
-	return 0;
-}
 
 SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 	disable_interrupts();
@@ -62,7 +49,7 @@ SYSCALL(3, port_connect, int, port_number, size_t, len, void *, buf) {
 
 	enable_interrupts();
 
-	int ret = port[port_number]->connect(req, len, buf);
+	int ret = port[port_number]->connect(port_number, req, len, buf);
 	if (ret != 0) {
 		obj_pool_free(current->file_pool, req);
 		current->fds->file[fd] = NULL;
@@ -84,13 +71,17 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 		enable_interrupts();
 		return -EBADF;
 	}
+	if (!req->rops->request) {
+		enable_interrupts();
+		return -EBADF;
+	}
 
 	//Validate user addr
 	if (len || buf) {
 		int ret = validate_range((uint64_t)buf, len);
 		if (ret) {
 			enable_interrupts();
-			return -EINVAL;
+			return -EFAULT;
 		}
 	}
 
@@ -122,11 +113,11 @@ SYSCALL(2, get_response, int, cookie, struct response *, res) {
 	printk("get_response(cookie=%d)\n", cookie);
 	if (validate_range((uint64_t)res, sizeof(struct response))) {
 		enable_interrupts();
-		return -EINVAL;
+		return -EFAULT;
 	}
 	if (cookie < 0 || cookie > current->fds->max_fds || !current->fds->file[cookie]) {
 		enable_interrupts();
-		return -EINVAL;
+		return -EBADF;
 	}
 	struct request *req = current->fds->file[cookie];
 	if (!req->rops->get_response) {
@@ -147,6 +138,17 @@ end:
 
 }
 
+SYSCALL(1, close, int, fd) {
+	if (fd < 0 || fd > current->fds->max_fds || !current->fds->file[fd])
+		return -EBADF;
+	struct request *req = current->fds->file[fd];
+	current->fds->file[fd] = NULL;
+	if (req->rops->drop)
+		req->rops->drop(req);
+	obj_pool_free(current->file_pool, req);
+	return 0;
+}
+
 void wait_on_requesst(struct request *req, struct task *t) {
 	t->state = TASK_WAITING;
 	req->waited = true;
@@ -155,11 +157,12 @@ void wait_on_requesst(struct request *req, struct task *t) {
 int register_port(int port_number, struct port_ops *pops) {
 	if (port[port_number])
 		return -EBUSY;
+	if (!pops->connect)
+		panic("Registering port without connect()");
 	port[port_number] = pops;
 	return 0;
 }
 
-int deregister_port(int port_number) {
+void deregister_port(int port_number) {
 	port[port_number] = NULL;
-	return 0;
 }

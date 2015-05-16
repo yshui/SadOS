@@ -19,7 +19,7 @@ void tarfs_port_init(void) {
 }
 SERVICE_INIT(tarfs_port_init, tarfs_port);
 
-int tarfs_port_connect(struct request *req, size_t len, void *buf) {
+int tarfs_port_connect(int port, struct request *req, size_t len, void *buf) {
 	req->data = NULL;
 	req->rops = &tarfs_rops;
 	return 0;

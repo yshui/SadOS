@@ -170,6 +170,7 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 
 	if (flags & CT_SELF) {
 		destroy_as(current->as);
+		ti.r11 |= BIT(9); //Set IF
 		memcpy(current->ti, &ti, sizeof(ti));
 		current->as = _as;
 		load_cr3(_as);

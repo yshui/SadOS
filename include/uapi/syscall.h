@@ -10,12 +10,14 @@
 #define NR_get_thread_info  7
 #define NR_create_task      8
 #define NR_asdestroy        9
+#define NR_close           10
+#define NR_pop_request     11
+#define NR_respond         12
 
 //Deprecated
 #define NR_read        0
 #define NR_write       1
 #define NR_open        2
-#define NR_close       3
 #define NR_lseek       8
 //#define NR_mmap        9
 //#define NR_mprotect   10
