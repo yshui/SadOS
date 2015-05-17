@@ -92,6 +92,7 @@ int open(const char *path, int flags) {
 	struct io_req *req = malloc(sizeof(struct io_req)+strlen(path)+1);
 	req->flags = flags;
 	req->type = IO_OPEN;
+	req->len = strlen(path);
 	strcpy((void *)(req+1), path);
 	int cookie = request(handle, sizeof(struct io_req)+strlen(path)+1, req);
 	if (allocated) {
@@ -102,6 +103,7 @@ int open(const char *path, int flags) {
 		return cookie;
 
 	fd_zero(&fds);
+	fd_set_set(&fds, cookie);
 	ret = wait_on(&fds, NULL, 0);
 	if (ret < 0)
 		return ret;
@@ -121,5 +123,5 @@ int open(const char *path, int flags) {
 		errno = tmp;
 		return -1;
 	}
-	return 0;
+	return handle;
 }

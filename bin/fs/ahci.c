@@ -264,7 +264,7 @@ uint64_t checkAllBuses(void)
         {
             bar5 = checkDevice(bus, device);
             if (bar5 != 0) {
-		printf("%x", bar5);
+		//printf("%x", bar5);
                 return bar5;
 	    }
 
@@ -295,6 +295,7 @@ uint8_t read_sata(struct port_data *pdata, uint32_t startl, uint32_t starth, uin
     int slot = find_cmdslot(pdata->port);
     //uint64_t buf_phys = (uint64_t)buf - KERN_VMBASE;
     uint64_t buf_phys = get_physical((uint64_t)buf);
+    //printf("%x\n", buf_phys);
     if (slot == -1)
         return 0;
 
@@ -394,17 +395,16 @@ uint8_t write_sata(struct port_data *pdata, uint32_t startl, uint32_t starth, ui
     int slot = find_cmdslot(pdata->port);
     //uint64_t buf_phys = (uint64_t)buf - KERN_VMBASE;
     uint64_t buf_phys = get_physical((uint64_t)buf);
+    //printf("%x\n", buf_phys);
 
     //HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*) (KERN_VMBASE + port->clb);
     HBA_CMD_HEADER* cmdheader = (HBA_CMD_HEADER*)pdata->clb;
     cmdheader += slot;
-    printf("%x %d\n", cmdheader, sizeof(*cmdheader));
 
     cmdheader->cfl = sizeof(FIS_REG_H2D)/sizeof(uint32_t); // Command FIS size
     cmdheader->w = 1;       // Write device
     cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;    // PRDT entries count
 
-    printf("%x\n", cmdheader->ctba);
     HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*) pdata->ctba[slot];
     //HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)(KERN_VMBASE + cmdheader->ctba);
     memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) +
@@ -416,17 +416,21 @@ uint8_t write_sata(struct port_data *pdata, uint32_t startl, uint32_t starth, ui
     {
         cmdtbl->prdt_entry[i].dba = (uint32_t) (buf_phys & 0xffffffff);
         cmdtbl->prdt_entry[i].dbau = (uint32_t) ( ( (buf_phys) >> 32) & 0xffffffff);
-        cmdtbl->prdt_entry[i].dbc = 8*1024; // 8K bytes
-        cmdtbl->prdt_entry[i].i = 1;
-        buf += 4*1024;  // 4K words
+        cmdtbl->prdt_entry[i].dbc = 8*1024-1; // 8K bytes
+        //cmdtbl->prdt_entry[i].i = 1;
+        buf += 8*1024;  // 4K words
         count -= 16;    // 16 sectors
     }
     // Last entry
+    //printf("TTT%d %x %d\n", sizeof(HBA_PRDT_ENTRY), *(((uint32_t *)&cmdtbl->prdt_entry[i])+3), count);
     cmdtbl->prdt_entry[i].dba = (uint32_t) (buf_phys & 0xffffffff);
     cmdtbl->prdt_entry[i].dbau = (uint32_t) ( (buf_phys >> 32) & 0xffffffff);
     //printk("dba & dbau: %p %p\n", cmdtbl ->prdt_entry[i].dba, cmdtbl -> prdt_entry[i].dbau);
-    cmdtbl->prdt_entry[i].dbc = count<<9;   // 512 bytes per sector
-    cmdtbl->prdt_entry[i].i = 1;
+    //printf("TT2%d %x %d\n", sizeof(HBA_PRDT_ENTRY), *(((uint32_t *)&cmdtbl->prdt_entry[i])+3), count);
+    cmdtbl->prdt_entry[i].dbc = (count<<9)-1;   // 512 bytes per sector
+    //printf("TT3%d %x %d\n", sizeof(HBA_PRDT_ENTRY), *(((uint32_t *)&cmdtbl->prdt_entry[i])+3), count);
+    //cmdtbl->prdt_entry[i].i = 1;
+    //printf("%d %x\n", sizeof(HBA_PRDT_ENTRY), *(((uint32_t *)&cmdtbl->prdt_entry[i])+3));
 
     // Setup command
     FIS_REG_H2D *cmdfis = (FIS_REG_H2D*)(&cmdtbl->cfis);

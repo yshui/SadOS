@@ -4,6 +4,7 @@
 #include <stdlib.h>
 //#include <sys/mm.h>
 //#include <sys/printk.h>
+#include <sendpage.h>
 #include <uapi/port.h>
 #include <uapi/mem.h>
 #include <ipc.h>
@@ -476,7 +477,7 @@ int close_sata_dir(struct dentry_reader* reader)
 }
 void init_fs(void)
 {
-    common_buf = (char *)malloc(4096);
+    common_buf = (char *)sendpage(0, 0, 0, 4096);
     memset(common_buf, 0, 4096);
     int i;
     struct response res;

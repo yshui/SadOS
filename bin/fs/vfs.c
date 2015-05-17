@@ -315,6 +315,7 @@ int main()
     fds.nfds = 0;
     handle_to_fd = (uint64_t*) malloc(4096);
     struct urequest ureq;
+    list_head_init(&all_fds);
     while (1)
     {
         fd_zero(&fds);

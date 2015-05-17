@@ -97,7 +97,8 @@ int main() {
 	if (pid2 == 0)
 		fork_fs();
 	wait_on_port(6);
-	int fd = open("/bin/init", O_RDONLY);
+	int fd = open("/tarfs/bin/init", O_RDONLY);
+	printf("Open %d\n", fd);
 	char *buf = malloc(1024);
 	read(fd, buf, 4);
 	buf[4] = 0;
