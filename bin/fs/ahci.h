@@ -49,32 +49,32 @@ typedef struct tagFIS_REG_D2H
 {
     // int32_t 0
     uint8_t    fis_type;    // FIS_TYPE_REG_D2H
- 
+
     uint8_t    pmport:4;    // Port multiplier
     uint8_t    rsv0:2;      // Reserved
     uint8_t    i:1;         // Interrupt bit
     uint8_t    rsv1:1;      // Reserved
- 
+
     uint8_t    status;      // Status register
     uint8_t    error;       // Error register
- 
+
     // int32_t 1
     uint8_t    lba0;        // LBA low register, 7:0
     uint8_t    lba1;        // LBA mid register, 15:8
     uint8_t    lba2;        // LBA high register, 23:16
     uint8_t    device;      // Device register
- 
+
     // int32_t 2
     uint8_t    lba3;        // LBA register, 31:24
     uint8_t    lba4;        // LBA register, 39:32
     uint8_t    lba5;        // LBA register, 47:40
     uint8_t    rsv2;        // Reserved
- 
+
     // int32_t 3
     uint8_t    countl;      // Count register, 7:0
     uint8_t    counth;      // Count register, 15:8
     uint8_t    rsv3[2];     // Reserved
- 
+
     // int32_t 4
     uint8_t    rsv4[4];     // Reserved
 } FIS_REG_D2H;
@@ -130,13 +130,13 @@ typedef volatile struct tagHBA_MEM
     uint32_t   em_ctl;     // 0x20, Enclosure management control
     uint32_t   cap2;       // 0x24, Host capabilities extended
     uint32_t   bohc;       // 0x28, BIOS/OS handoff control and status
- 
+
     // 0x2C - 0x9F, Reserved
     uint8_t    rsv[0xA0-0x2C];
- 
+
     // 0xA0 - 0xFF, Vendor specific registers
     uint8_t    vendor[0x100-0xA0];
- 
+
     // 0x100 - 0x10FF, Port control registers
     HBA_PORT    ports[1];   // 1 ~ 32
 } HBA_MEM;
@@ -146,7 +146,7 @@ typedef struct tagHBA_PRDT_ENTRY
     uint32_t   dba;        // Data base address
     uint32_t   dbau;       // Data base address upper 32 bits
     uint32_t   rsv0;       // Reserved
- 
+
     // DW3
     uint32_t   dbc:22;     // Byte count, 4M max
     uint32_t   rsv1:9;     // Reserved
@@ -157,13 +157,13 @@ typedef struct tagHBA_CMD_TBL
 {
     // 0x00
     uint8_t    cfis[64];   // Command FIS
- 
+
     // 0x40
     uint8_t    acmd[16];   // ATAPI command, 12 or 16 bytes
- 
+
     // 0x50
     uint8_t    rsv[48];    // Reserved
- 
+
     // 0x80
     HBA_PRDT_ENTRY  prdt_entry[1];  // Physical region descriptor table entries, 0 ~ 65535
 } HBA_CMD_TBL;
@@ -194,7 +194,7 @@ typedef struct tagHBA_CMD_HEADER
 
     // DW4 - 7
     uint32_t   rsv1[4];    // Reserved
-} HBA_CMD_HEADER;
+} __attribute__((packed)) HBA_CMD_HEADER;
 
 struct port_data {
 	void *clb;

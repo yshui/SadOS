@@ -123,7 +123,7 @@ void port_rebase(HBA_PORT *port, int portno, struct port_data *pdata)
     // Command list entry size = 32
     // Command list entry maxim count = 32
     // Command list maxim size = 32*32 = 1K per port
-    void *mapped_clb = malloc(4096);
+    void *mapped_clb = sendpage(0, 0, 0, 4096);
     memset(mapped_clb, 0, 4096);
     port->clb = get_physical((uint64_t)mapped_clb);
     port->clbu = 0;
@@ -131,7 +131,7 @@ void port_rebase(HBA_PORT *port, int portno, struct port_data *pdata)
 
     // FIS offset: 32K+256*portno
     // FIS entry size = 256 bytes per port
-    void *mapped_fb = malloc(4096);
+    void *mapped_fb = sendpage(0, 0, 0, 4096);
     memset(mapped_fb, 0, 4096);
     port->fb = get_physical((uint64_t)mapped_fb);
     port->fbu = 0;
@@ -149,7 +149,7 @@ void port_rebase(HBA_PORT *port, int portno, struct port_data *pdata)
         cmdheader[i].prdtl = 8; // 8 prdt entries per command table
                     // 256 bytes per command table, 64+16+48+16*8
         // Command table offset: 40K + 8K*portno + cmdheader_index*256
-	void *ctba_buf = malloc(4096);
+	void *ctba_buf = sendpage(0, 0, 0, 4096);
 	memset(ctba_buf, 0, 4096);
 	pdata->ctba[i] = ctba_buf;
         cmdheader[i].ctba = get_physical((uint64_t)ctba_buf);
@@ -398,10 +398,13 @@ uint8_t write_sata(struct port_data *pdata, uint32_t startl, uint32_t starth, ui
     //HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*) (KERN_VMBASE + port->clb);
     HBA_CMD_HEADER* cmdheader = (HBA_CMD_HEADER*)pdata->clb;
     cmdheader += slot;
+    printf("%x %d\n", cmdheader, sizeof(*cmdheader));
+
     cmdheader->cfl = sizeof(FIS_REG_H2D)/sizeof(uint32_t); // Command FIS size
     cmdheader->w = 1;       // Write device
     cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;    // PRDT entries count
 
+    printf("%x\n", cmdheader->ctba);
     HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*) pdata->ctba[slot];
     //HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)(KERN_VMBASE + cmdheader->ctba);
     memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) +
