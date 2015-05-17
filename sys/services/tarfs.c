@@ -14,8 +14,11 @@ void tarfs_port_init(void) {
 	uint64_t end = (uint64_t)&_binary_tarfs_end;
 	uint64_t astart = ALIGN_UP(start, PAGE_SIZE_BIT);
 	uint64_t aend = ALIGN(end, PAGE_SIZE_BIT);
-	for (int i = astart; i < aend; i+=PAGE_SIZE)
-		manage_phys_page(i-(uint64_t)&physoffset);
+	for (int i = astart; i < aend; i+=PAGE_SIZE) {
+		uint64_t paddr = i-(uint64_t)&physoffset;
+		map_page(paddr, KERN_VMBASE+paddr, 0, PTE_W);
+		manage_phys_page(paddr);
+	}
 }
 SERVICE_INIT(tarfs_port_init, tarfs_port);
 

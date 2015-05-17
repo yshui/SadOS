@@ -154,6 +154,7 @@ void unshare_page(struct page_entry *pe) {
 	if (pe->p->ref_count == 1)
 		panic("Trying to unshare a page with 1 user");
 	//Then create a new page and copy
+	printk("Copy from phys %p to virt %p\n", pe->p->phys_addr, page);
 	memcpy(page, phys_to_virt(pe->p->phys_addr), PAGE_SIZE);
 
 	struct page *p = manage_page((uint64_t)page), *oldp = pe->p;
