@@ -103,3 +103,15 @@ SYSCALL(2, munmap, void *, base, size_t, len) {
 	remove_vma_range(current->as, (uint64_t)base, len);
 	return 0;
 }
+
+SYSCALL(1, get_physical, uint64_t, vaddr) {
+	uint64_t avaddr = ALIGN(vaddr, PAGE_SIZE_BIT);
+	disable_interrupts();
+	struct page_entry *pe = get_allocated_page(current->as, avaddr);
+	if (!pe || pe->flags&PF_SNAPSHOT) {
+		enable_interrupts();
+		return 0;
+	}
+	enable_interrupts();
+	return pe->p->phys_addr;
+}
