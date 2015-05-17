@@ -16,8 +16,11 @@ struct task {
 	uint8_t *kstack_base; //Upon entry from user space, stack_base is used
 	uint8_t *krsp; //When switching task in kernel, saved rsp is used
 	struct thread_info *ti;
+	struct task *parent;
+	struct list_head children;
 	int state;
 	struct list_node tasks;
+	struct list_node siblings;
 	struct fdtable *fds;
 	struct fdtable *astable;
 	struct obj_pool *file_pool;

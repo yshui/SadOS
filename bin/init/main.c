@@ -64,9 +64,9 @@ int main() {
 	tar_begin = res.buf;
 	tar_len = res.len;
 
-	int as = asnew(AS_SNAPSHOT);
-	ti.rcx = (uint64_t)&fork_entry_here;
-	create_task(as, &ti, 0);
+	int pid = fork();
+	if (pid == 0)
+		fork_entry_here();
 
 	wait_on_port(5);
 	int pd = port_connect(5, 0, NULL);
@@ -75,6 +75,7 @@ int main() {
 	wait_on(NULL, &fds, 0);
 	dup2(pd, 0);
 	dup2(0, 1);
+	printf("%d\n", pid);
 
 	char *buf = malloc(1024);
 	while(1) {

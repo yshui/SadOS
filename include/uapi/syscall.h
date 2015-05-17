@@ -18,6 +18,7 @@
 #define NR_munmap          15
 #define NR_dup0            16
 #define NR_get_physical    17
+#define NR_getpid          18
 
 //Deprecated
 #define NR_open        2
@@ -29,8 +30,6 @@
 #define NR_pipe       22
 #define NR_nanosleep  35
 #define NR_alarm      37
-#define NR_getpid     39
-#define NR_fork       57
 #define NR_execve     59
 #define NR_wait4      61
 #define NR_getdents   78

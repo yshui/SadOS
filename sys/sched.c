@@ -8,6 +8,7 @@
 #include <sys/copy.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include <sys/list.h>
 struct list_head runq;
 struct task *tasks[32767], *idle_task;
 static struct obj_pool *task_pool = NULL;
@@ -21,6 +22,17 @@ static void kill_process(struct task *t) {
 	obj_pool_destroy(t->file_pool);
 	drop_page(t->fds);
 	drop_page(t->kstack_base-PAGE_SIZE);
+
+	struct task *child, *tmp;
+	list_for_each_safe(&t->children, child, tmp, siblings) {
+		list_del(&child->siblings);
+		child->parent = NULL;
+	}
+
+	if (!t->parent) {
+		tasks[t->pid] = NULL;
+		obj_pool_free(task_pool, t);
+	}
 }
 
 void after_switch(void) {
@@ -120,6 +132,7 @@ struct task *new_process(struct address_space *as, struct thread_info *ti) {
 	new_task->astable = fdtable_new();
 	new_task->astable->file[0] = as;
 	new_task->ti = NULL;
+	list_head_init(&new_task->children);
 
 	//We need to forge the kernel stack of this process
 	//So when we schedule(), we can switch to this task
@@ -236,8 +249,24 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 	ntask->priority = current->priority;
 	ntask->state = TASK_RUNNABLE;
 	ntask->pid = pid;
+	ntask->parent = current;
 	tasks[pid] = ntask;
 	list_add(&runq, &ntask->tasks);
+	list_add(&current->children, &ntask->siblings);
 	enable_interrupts();
-	return 0;
+	return pid;
+}
+
+SYSCALL(0, getpid) {
+	return current->pid;
+}
+
+SYSCALL(0, getppid) {
+	disable_interrupts();
+
+	int ret = 0;
+	if (current->parent)
+		ret = current->parent->pid;
+	enable_interrupts();
+	return ret;
 }
