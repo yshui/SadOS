@@ -5,12 +5,18 @@
 #include <bitops.h>
 
 ssize_t read(int fd, void *buf, size_t len) {
+	//Wait for write
+	struct fd_set fds;
+	fd_zero(&fds);
+	fd_set_set(&fds, fd);
+	wait_on(NULL, &fds, 0);
+
 	struct io_req ioreq;
 	ioreq.type = IO_READ;
 	ioreq.len = len;
 
 	int cookie = request(fd, sizeof(ioreq), &ioreq);
-	struct fd_set fds;
+	fd_zero(&fds);
 	fd_set_set(&fds, cookie);
 	wait_on(&fds, NULL, 0);
 
@@ -27,6 +33,11 @@ ssize_t read(int fd, void *buf, size_t len) {
 }
 
 ssize_t write(int fd, const void *buf, size_t len) {
+	struct fd_set fds;
+	fd_zero(&fds);
+	fd_set_set(&fds, fd);
+	wait_on(NULL, &fds, 0);
+
 	size_t allocated = ALIGN_UP(len+sizeof(struct io_req), 12);
 	struct io_req *ioreq = sendpage(0, 0, 0, allocated);
 	ioreq->type = IO_WRITE;
@@ -34,7 +45,7 @@ ssize_t write(int fd, const void *buf, size_t len) {
 	memcpy(ioreq+1, buf, len);
 
 	int cookie = request(fd, sizeof(struct io_req)+len, ioreq);
-	struct fd_set fds;
+	fd_zero(&fds);
 	fd_set_set(&fds, cookie);
 	wait_on(&fds, NULL, 0);
 

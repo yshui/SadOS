@@ -80,9 +80,10 @@ int main() {
 	fd_set_set(&fds, pd);
 	wait_on(NULL, &fds, 0);
 	dup2(pd, 0);
-	dup2(pd, 1);
+	dup2(0, 1);
 
 	int i = 0;
-	while(1)
+	while(++i)
 		printf("test%d\n", i);
+	return 0;
 }

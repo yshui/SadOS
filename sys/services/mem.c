@@ -14,7 +14,7 @@ struct mem_data {
 	void *buf;
 	size_t len;
 };
-int mem_port_request(struct request *req, size_t len, void *buf) {
+int mem_port_request(struct request *req, struct request *reqc, size_t len, void *buf) {
 	if (len != sizeof(struct mem_req))
 		return -EINVAL;
 
@@ -68,8 +68,8 @@ int mem_port_request(struct request *req, size_t len, void *buf) {
 	md->obp = op;
 	md->buf = (void *)vma->vma_begin;
 	md->len = alen;
-	req->data = md;
-	req->rops = &mem_rops;
+	reqc->data = md;
+	reqc->rops = &mem_rops;
 	ret = 0;
 end:
 	enable_interrupts();
@@ -98,7 +98,7 @@ void mem_port_close(struct request *req) {
 	obj_pool_destroy(md->obp);
 }
 int mem_port_connect(int port, struct request *req, size_t len, void *buf) {
-	return mem_port_request(req, len, buf);
+	return mem_port_request(NULL, req, len, buf);
 }
 void mem_service_init(void){
 	printk("Memory port init\n");

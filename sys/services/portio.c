@@ -20,21 +20,21 @@ int portio_connect(int port, struct request *req, size_t len, void *buf) {
 	return 0;
 }
 
-int portio_request(struct request *req, size_t len, void *buf) {
+int portio_request(struct request *req, struct request *reqc, size_t len, void *buf) {
 	struct portio_req preq;
 	if (len != sizeof(preq))
 		return -EINVAL;
 	int ret = copy_from_user_simple(buf, &preq, sizeof(preq));
 	if (ret != 0)
 		return -EFAULT;
-	req->rops = &portio_rops;
+	reqc->rops = &portio_rops;
 	if (preq.type == 1) {
 		printk("Writing %p to port %p\n", preq.byte, preq.port);
 		outb(preq.port, preq.byte);
-		req->data = (void *)-1;
+		reqc->data = (void *)-1;
 		return 0;
 	} else if (preq.type == 2) {
-		req->data = (void *)(uint64_t)inb(preq.port);
+		reqc->data = (void *)(uint64_t)inb(preq.port);
 		printk("Read %p from port %p\n", req->data, preq.port);
 		return 0;
 	}

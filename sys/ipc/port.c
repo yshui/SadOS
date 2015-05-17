@@ -90,7 +90,7 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	struct request *reqc = obj_pool_alloc(current->file_pool);
 	reqc->type = REQ_COOKIE;
 	reqc->waited_rw = 0;
-	reqc->owner = req;
+	reqc->owner = current;
 	int fd = fdtable_insert(current->fds, reqc);
 	if (fd < 0) {
 		obj_pool_free(current->file_pool, reqc);
@@ -99,7 +99,7 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 	}
 
 
-	int ret = req->rops->request(reqc, len, buf);
+	int ret = req->rops->request(req, reqc, len, buf);
 	if (ret != 0) {
 		obj_pool_free(current->file_pool, req);
 		current->fds->file[fd] = NULL;
@@ -185,7 +185,8 @@ static int fds_check(int rw, struct fd_set *fds) {
 		if (!req->rops->available(req, rw)) {
 			printk("File %d is not available for %s\n", i, rw == 1 ? "read" : "write");
 			fd_clear(fds, i);
-		}
+		} else
+			printk("File %d is available for %s\n", i, rw == 1 ? "read" : "write");
 		req->waited_rw |= rw;
 	}
 	return 0;

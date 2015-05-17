@@ -19,8 +19,6 @@
 #define NR_dup0            16
 
 //Deprecated
-#define NR_read        0
-#define NR_write       1
 #define NR_open        2
 #define NR_lseek       8
 //#define NR_mmap        9

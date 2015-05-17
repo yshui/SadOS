@@ -1,7 +1,11 @@
 #include <ipc.h>
 #include <uapi/mem.h>
 #include <uapi/portio.h>
+#include <uapi/ioreq.h>
 #include <stdlib.h>
+#include <sendpage.h>
+#include <bitops.h>
+#include <errno.h>
 #define R (25)
 #define C (80)
 #define VBUF_SIZE sizeof(buffer)
@@ -128,8 +132,19 @@ int main() {
 		fd_set_set(&fds, handle);
 		wait_on(&fds, NULL, 0);
 		int rhandle = pop_request(handle, &ureq);
-		close(rhandle);
-		char *x = ureq.buf;
-		vga_puts(x);
+		struct io_req *x = ureq.buf;
+		struct io_res rx;
+		if (x->type == IO_READ) {
+			rx.err = EBADF;
+			rx.len = 0;
+			respond(rhandle, sizeof(rx), &rx);
+		} else {
+			vga_puts((void *)(x+1));
+			rx.err = 0;
+			rx.len = strlen((void *)(x+1));
+			respond(rhandle, sizeof(rx), &rx);
+		}
+		uint64_t base = ALIGN((uint64_t)x, 12);
+		//munmap((void *)base, ureq.len);
 	}
 }

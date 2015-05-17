@@ -24,8 +24,6 @@ __noreturn void exit(int status) {
 	__builtin_unreachable();
 }
 sys2(open, const char *, int, int)
-sys3(read, int, void *, size_t, ssize_t)
-sys3(write, int, const void *, size_t, ssize_t)
 sys0(fork, pid_t)
 sys0(getpid, pid_t)
 sys0(getppid, pid_t)

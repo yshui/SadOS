@@ -165,6 +165,18 @@ void unshare_page(struct page_entry *pe) {
 	} else {
 		pe->flags = PF_SHARED; //Now I own this page
 		oldp->snap_count--;
+		if (oldp->snap_count == 0) {
+			//Restore write permissions
+			struct page_entry *o;
+			list_for_each(&oldp->owner, o, owner_of) {
+				if (!(o->flags&PF_SHARED))
+					panic("snap_count == 0 but has snapshot\n");
+
+				uint64_t *pte = ptable_get_entry_4k(o->as->pml4, o->vaddr);
+				if (pte && *pte&PTE_P)
+					*pte |= PTE_W;
+			}
+		}
 	}
 	pe->p = p;
 	list_add(&p->owner, &pe->owner_of);

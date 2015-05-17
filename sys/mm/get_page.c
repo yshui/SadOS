@@ -98,7 +98,7 @@ static uint64_t get_phys_page_locked(void) {
 		void *ret = head;
 		head = head->next;
 		uint64_t p = ((uint64_t)ret)-KERN_VMBASE;
-		printk("Get phys page': %p\n", p);
+		//printk("Get phys page': %p\n", p);
 		return p;
 	}
 
@@ -111,7 +111,7 @@ static uint64_t get_phys_page_locked(void) {
 		usable_head->base += PAGE_SIZE;
 		usable_head->length -= PAGE_SIZE;
 	}
-	printk("Get phys page: %p\n", begin);
+	//printk("Get phys page: %p\n", begin);
 	return begin;
 }
 
@@ -129,13 +129,13 @@ void *get_page(void) {
 	if (head) {
 		void *ret = head;
 		head = head->next;
-		printk("get_page: %p\n", ret);
+		//printk("get_page: %p\n", ret);
 		enable_interrupts();
 		return ret;
 	}
 	uint64_t ret = get_phys_page_locked()+KERN_VMBASE;
 	enable_interrupts();
-	printk("get_page: %p\n", ret);
+	//printk("get_page: %p\n", ret);
 	return (void *)ret;
 }
 

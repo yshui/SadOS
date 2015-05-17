@@ -31,7 +31,7 @@ struct request {
 };
 
 struct req_ops {
-	int (*request)(struct request *req, size_t len, void *buf);
+	int (*request)(struct request *req, struct request *cookie, size_t len, void *buf);
 	int (*get_response)(struct request *req, struct response *);
 	void (*drop)(struct request *req);
 	int (*dup)(struct request *old_req, struct request *new_req);

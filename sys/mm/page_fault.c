@@ -11,7 +11,7 @@ extern void (*page_fault_entry)(void);
 struct page *zero_page;
 uint64_t page_fault_handler(uint64_t err) {
 	uint64_t vaddr = read_cr2();
-	printk("%d: %p\n", err, vaddr);
+	printk("(pid %d) %d: %p\n", current->pid, err, vaddr);
 	if (!GET_BIT(err, 2))
 		panic("Page fault in the kernel");
 	//Do we have a page allocated for it?

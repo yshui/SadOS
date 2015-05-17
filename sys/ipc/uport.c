@@ -152,7 +152,10 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 		res.len = 0;
 	}
 
+	struct task *client_task = msg->client_req->owner;
+
 	struct request *creq = msg->client_req;
+	res.pid = client_task->pid;
 	ret = copy_to_user_simple(&res, buf, sizeof(res));
 	if (ret != 0) {
 		ret = -EFAULT;
@@ -162,12 +165,6 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 	list_del(&msg->next);
 	if (msg->plh)
 		page_list_free(msg->plh);
-	struct task *client_task;
-	if (msg->client_req->type == REQ_COOKIE) {
-		struct request *oreq = msg->client_req->owner;
-		client_task = oreq->owner;
-	} else
-		client_task = msg->client_req->owner;
 	obj_pool_free(client_task->file_pool, msg);
 
 	if (req->type == REQ_PORT) {
@@ -217,6 +214,9 @@ SYSCALL(3, respond, int, fd, size_t, len, void *, buf) {
 	if (!upcookie->client_req)
 		goto end;
 
+	if (upcookie->client_req->type != REQ_COOKIE)
+		panic("Wrong type for client_req\n");
+
 	ret = -EFAULT;
 	struct page_list_head *plh = map_from_user(buf, len);
 	if (PTR_IS_ERR(plh))
@@ -229,6 +229,7 @@ SYSCALL(3, respond, int, fd, size_t, len, void *, buf) {
 		upcookie->response = plh;
 	else
 		upcookie->response = (void *)1;
+
 	if (upcookie->client_req->waited_rw&1)
 		wake_up(upcookie->client_req->owner);
 end:
@@ -258,8 +259,7 @@ int uport_connect(int port, struct request *req, size_t len, void *buf) {
 	return 0;
 }
 
-int uport_request(struct request *reqc, size_t len, void *buf) {
-	struct request *req = reqc->owner;
+int uport_request(struct request *req, struct request *reqc, size_t len, void *buf) {
 	if (req->state == REQ_CLOSED)
 		//Server side has closed connection
 		return -EPIPE;
@@ -305,8 +305,7 @@ int uport_get_response(struct request *req, struct response *res) {
 		//Server side has not acknowledged this connection
 		return -EAGAIN;
 
-	struct request *sreq = req->data;
-	struct uport_cookie *upcookie = sreq->data;
+	struct uport_cookie *upcookie = req->data;
 
 	if (!upcookie->response)
 		return -EAGAIN;
@@ -343,12 +342,7 @@ void uport_user_close(struct request *req) {
 		if (msg->plh)
 			page_list_free(msg->plh);
 
-		struct task *client_task;
-		if (req->type == REQ_COOKIE) {
-			struct request *creq = msg->client_req->owner;
-			client_task = creq->owner;
-		} else
-			client_task = msg->client_req->owner;
+		struct task *client_task = msg->client_req->owner;
 		obj_pool_free(client_task->file_pool, msg);
 		return;
 	}
@@ -468,10 +462,8 @@ void uport_server_close(struct request *req) {
 			upcookie = req->data;
 			if (upcookie->client_req) {
 				upcookie->client_req->state = REQ_CLOSED;
-				if (upcookie->client_req->waited_rw) {
-					struct request *oreq = upcookie->client_req->owner;
-					wake_up(oreq->owner);
-				}
+				if (upcookie->client_req->waited_rw)
+					wake_up(upcookie->client_req->owner);
 			}
 			if (upcookie->response)
 				panic("cookie already has a response, but it's still in fdtable\n");
