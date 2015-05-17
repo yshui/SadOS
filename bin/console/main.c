@@ -145,6 +145,6 @@ int main() {
 			respond(rhandle, sizeof(rx), &rx);
 		}
 		uint64_t base = ALIGN((uint64_t)x, 12);
-		//munmap((void *)base, ureq.len);
+		munmap((void *)base, ureq.len);
 	}
 }
