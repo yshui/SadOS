@@ -126,7 +126,7 @@ static int is_range_reserved(uint64_t base, size_t len) {
 	uint64_t end = base+len;
 	while(now) {
 		uint64_t mrend = now->base+now->length;
-		if (end > now->base && now->base < mrend)
+		if (end > now->base && base < mrend)
 			return 0;
 		if (now->base >= end)
 			return 1;

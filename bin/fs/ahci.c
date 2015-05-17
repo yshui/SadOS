@@ -165,7 +165,7 @@ void port_rebase(HBA_PORT *port, int portno)
         // Command table offset: 40K + 8K*portno + cmdheader_index*256
         cmdheader[i].ctba = AHCI_BASE + (40<<10) + (portno<<13) + (i<<8);
         cmdheader[i].ctbau = 0;
-        cur_addr = cmdheader[i].ctba + KERN_VMBASE;
+        cur_addr = get_virtual_mem(cmdheader[i].ctba);
         memset((void*)cur_addr, 0, 256);
     }
  
@@ -272,8 +272,11 @@ uint64_t checkAllBuses(void)
         for(device = 0; device < 32; device++)
         {
             bar5 = checkDevice(bus, device);
-            if (bar5 != 0)
+            if (bar5 != 0) {
+		printf("%x", bar5);
                 return bar5;
+	    }
+
         }
         if (bus == 255)
             break;
