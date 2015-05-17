@@ -37,12 +37,6 @@ static inline uint16_t i8254_read(void) {
 uint64_t pit_handler(int v) {
 	static volatile uint32_t count = 0;
 	count++;
-	if (count % 41 == 0) {
-		//Get some space at the end of kernel
-		char *str = &kernend;
-		int len = itoa(count/41, 10, str, 0, 0);
-		vga_puts_at(str, 24, 80-len, 7);
-	}
 	return 0;
 }
 extern void pit_wrapper(void);

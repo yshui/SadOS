@@ -42,7 +42,7 @@
 #include <uapi/thread.h>
 #include <vfs.h>
 char buf[20000] = {0};
-char stack[4096];
+uint8_t stack[4096];
 
 extern void timer_init(void);
 struct smap_t smap_buf[20];
@@ -50,6 +50,7 @@ int ptsetup;
 struct task *create_idle_task(void) {
 	struct task *t = new_task();
 	t->as = NULL;
+	t->kstack_base = stack+4096;
 	t->state = TASK_RUNNABLE;
 	t->pid = 0;
 	tasks[0] = t;
@@ -114,6 +115,7 @@ __noreturn void start_init(void) {
 	//Map a page for stack
 	char *page = get_page();
 	memset(page, 0, PAGE_SIZE);
+	*(uint64_t *)(page+PAGE_SIZE-32) = 0; //cwd
 	*(uint64_t *)(page+PAGE_SIZE-24) = 0; //argc
 	*(uint64_t *)(page+PAGE_SIZE-16) = 0; //argv end
 	*(uint64_t *)(page+PAGE_SIZE-8) = 0; //envp end
@@ -125,12 +127,13 @@ __noreturn void start_init(void) {
 	struct thread_info ti;
 	memset(&ti, 0, sizeof(ti));
 	ti.rcx = entry_point;
-	ti.rsp = user_addr+PAGE_SIZE-8;
+	ti.rsp = user_addr+PAGE_SIZE-32;
 	struct task *t = new_process(user_as, &ti);
 	t->pid = 1;
 	tasks[1] = t;
 	list_add(&runq, &t->tasks);
 
+	enable_interrupts();
 	schedule();
 
 	//Schedule returns here when there's no runnable task
@@ -204,19 +207,9 @@ __noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	vga_text_init();
 	task_init();
 	port_init();
-	//timer_init();
+	timer_init();
 	//kbd_init();
 	current = create_idle_task();
-	enable_interrupts();
-    tarfs_init();
-    //ls_tarfs("/bin");
-    //struct file* fd = tarfs_open("/test/x", 0);
-    //printk("file len: %d\n", fd -> inode -> file_len);
-    //while (tarfs_read(fd, buf, 20) != 0)
-        //printk("%s", buf);
-    uint64_t bar5 = checkAllBuses();
-    printk("check bus done: %x\n", bar5);
-    //probe_port((HBA_MEM*) (bar5));
 
 	for(int i=0;i<=30000000;i++);
 	printk("Start!!!");

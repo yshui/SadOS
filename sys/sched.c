@@ -76,7 +76,7 @@ void schedule(void) {
 	after_switch();
 	return;
 }
-void int_reschedule(char *sp) {
+void int_reschedule(uint8_t *sp) {
 	//This function is called with interrupt disabled
 	//Switch from interrupt stack to per-task thread
 	//And copy saved registers
@@ -84,7 +84,14 @@ void int_reschedule(char *sp) {
 	kstack -= 5*8;  //Interrupt stack frame
 	kstack -= 15*8; //15 registers
 	kstack -= 8;    //Return address
-	memcpy(kstack, sp, (5+15+1)*8);
+	if (sp < current->kstack_base-PAGE_SIZE || sp > current->kstack_base) {
+		printk("copy to kernel stack");
+		memcpy(kstack, sp-8, (5+15+1)*8);
+	} else {
+		//We are already on kernel stack
+		printk("already on kernel stack");
+		kstack = sp-8;
+	}
 	interrupt_disabled = 0;
 
 	//Switch to kernel stack
@@ -187,6 +194,7 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 		ti.r11 |= BIT(9); //Set IF
 		memcpy(current->ti, &ti, sizeof(ti));
 		current->as = _as;
+		current->astable->file[0] = _as;
 		load_cr3(_as);
 		enable_interrupts();
 		return 0;

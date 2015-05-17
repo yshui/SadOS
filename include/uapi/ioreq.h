@@ -6,7 +6,7 @@ enum io_type {
 };
 
 struct io_req {
-	enum io_type type;
+	int type;
 	size_t len;
 };
 
