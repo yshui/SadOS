@@ -22,6 +22,8 @@
 #include <bitops.h>
 #include "util.h"
 
+extern char __cwd[];
+
 static int mapper(const void *base, const struct elf64_phdr *ph, void *d) {
 	if (ph->p_type == PT_DYNAMIC)
 		return ENOEXEC;
@@ -72,26 +74,23 @@ int execvm(const char *base, char * const* argv, char * const *environ) {
 		argc++;
 	}
 
-	uint64_t size = envsz+argvsz+(argc+envcnt+2)*8+8;
+	uint64_t size = strlen(__cwd)+1+envsz+argvsz+2+8;
 	char *page = sendpage(0, 0, 0, ALIGN_UP(size, 12));
-	char *dataptr = page+8*(argc+envcnt+2)+8;
-	char **ptrptr = (void *)page;
+	char *dataptr = page+4096-size+8;
+	strcpy(dataptr, __cwd);
+	dataptr += strlen(__cwd)+1;
+
 	for (int i = 0; argv[i]; i++) {
 		strcpy(dataptr, argv[i]);
-		*ptrptr = dataptr;
 		dataptr += strlen(argv[i])+1;
-		ptrptr++;
 	}
-	*ptrptr = NULL;
-	ptrptr++;
+	*(dataptr++) = 0;
 	for (int i = 0; environ[i]; i++) {
 		strcpy(dataptr, environ[i]);
-		*ptrptr = dataptr;
 		dataptr += strlen(environ[i])+1;
-		ptrptr++;
 	}
-	*ptrptr = NULL;
-	*(uint64_t *)page = argc;
+	*(dataptr++) = 0;
+	*(uint64_t *)(page+4096-size) = argc;
 
 	page = sendpage(as, (uint64_t)page, 0, ALIGN_UP(size, 12));
 	//Map another 1MB to stack
@@ -100,7 +99,7 @@ int execvm(const char *base, char * const* argv, char * const *environ) {
 	//Set up thread info
 	struct thread_info ti;
 	memset(&ti, 0, sizeof(ti));
-	ti.rsp = (uint64_t)page;
+	ti.rsp = (uint64_t)(page+4096-size);
 	ti.rcx = ei->hdr->e_entry;
 
 	return create_task(as, &ti, CT_SELF);

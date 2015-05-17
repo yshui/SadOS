@@ -16,6 +16,7 @@
 
 #define   EPERM        1
 #define   ENOENT       2
+#define   EIO          5
 #define   E2BIG        7
 #define   ENOEXEC      8
 #define   EBADF        9
@@ -27,4 +28,5 @@
 #define   EINVAL       22
 #define   EMFILE       24
 #define   EPIPE        32
+#define   ERANGE       34
 #define   EADDRINUSE   67

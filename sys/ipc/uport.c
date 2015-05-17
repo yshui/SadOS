@@ -328,6 +328,7 @@ int uport_dup(struct request *old_req, struct request *new_req) {
 		return -EAGAIN;
 	new_req->data = old_req->data;
 	new_req->state = old_req->state;
+	new_req->rops = old_req->rops;
 
 	struct request *sreq= old_req->data;
 	struct uport_req *upreq = sreq->data;

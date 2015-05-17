@@ -232,16 +232,17 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 		memcpy(&wfds2, &wfds, sizeof(wfds));
 		ret = fds_check(1, &rfds2);
 		if (ret != 0) {
-			enable_interrupts();
-			return ret;
+			current->state = TASK_RUNNING;
+			break;
 		}
 		ret = fds_check(2, &wfds2);
 		if (ret != 0) {
-			enable_interrupts();
-			return ret;
+			current->state = TASK_RUNNING;
+			break;
 		}
 		if (!fd_set_empty(&rfds2) || !fd_set_empty(&wfds2)) {
 			printk("Some fd is available, return\n");
+			current->state = TASK_RUNNING;
 			break;
 		}
 		enable_interrupts();
@@ -262,12 +263,12 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 		struct request *req = current->fds->file[i];
 		req->waited_rw = 0;
 	}
-	if (rbuf) {
+	if (rbuf && ret == 0) {
 		ret = copy_to_user_simple(&rfds2, rbuf, sizeof(struct fd_set));
 		if (ret != 0)
 			ret = -EFAULT;
 	}
-	if (wbuf) {
+	if (wbuf && ret == 0) {
 		ret = copy_to_user_simple(&wfds2, wbuf, sizeof(struct fd_set));
 		if (ret != 0)
 			ret = -EFAULT;

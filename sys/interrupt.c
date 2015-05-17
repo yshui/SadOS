@@ -16,10 +16,14 @@
 #include <sys/idt.h>
 #include <sys/interrupt.h>
 #include <sys/i8259.h>
+#include <sys/list.h>
+#include <sys/port.h>
+#include <sys/sched.h>
 
 #include <sys/printk.h>
 
 extern uint64_t int_entry[];
+extern struct list_head int_wait_list[];
 int interrupt_disabled = 0;
 
 handler_t htable[224];
@@ -30,6 +34,12 @@ uint64_t int_handler(uint64_t vector) {
 	uint64_t ret = 0;
 	if (fn)
 		ret = fn(vector);
+	struct request *ri;
+	list_for_each(&int_wait_list[vector], ri, next_req) {
+		if (ri->waited_rw&1)
+			wake_up(ri->owner);
+		ri->data = (void *)((uint64_t)ri->data|256);
+	}
 	if (eoitable[vector])
 		eoitable[vector](vector);
 	return ret;

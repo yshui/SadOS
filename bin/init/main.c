@@ -12,6 +12,7 @@
 //.bss in init can't exceed 1MB
 char X;
 void clear_free(void);
+extern char __cwd[];
 void bootstrap(void){
 	//The kernel doesn't really load elf properly
 	//So let's bootstrap ourself
@@ -22,6 +23,8 @@ void bootstrap(void){
 	memset((void *)esi->hdr->sh_addr, 0, esi->hdr->sh_size);
 	free(esi);
 	free(ei);
+
+	strcpy(__cwd, "/");
 }
 static void *tar_begin;
 static size_t tar_len;
@@ -73,8 +76,10 @@ int main() {
 	dup2(pd, 0);
 	dup2(0, 1);
 
-	int i = 0;
-	while(++i)
-		printf("test%d\n", i);
+	char *buf = malloc(1024);
+	while(1) {
+		read(0, buf, 1024);
+		printf("%s\n", buf);
+	}
 	return 0;
 }

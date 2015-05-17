@@ -18,26 +18,21 @@
 #include <syscall.h>
 #include <string.h>
 
+char __cwd[PATH_MAX];
+
 char *getcwd(char *buf, size_t size)
 {
-	char tmp[PATH_MAX];
-	if (!buf) {
-		buf = tmp;
-		size = PATH_MAX;
-	}
+	if (!buf)
+		return strdup(__cwd);
 
 	if (!size) {
 		errno = EINVAL;
 		return NULL;
 	}
-
-	int64_t ret = syscall_2(NR_getcwd, (uint64_t)buf, size);
-	if (ret < 0) {
-		errno = -ret;
+	if (size < strlen(__cwd)) {
+		errno = ERANGE;
 		return NULL;
 	}
-
-	if (buf == tmp)
-		return strdup(tmp);
+	strcpy(buf, __cwd);
 	return buf;
 }

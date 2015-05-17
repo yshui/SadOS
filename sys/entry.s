@@ -101,8 +101,8 @@ syscall_entry:
 	call *%r10
 
 syscall_return:
-	movq interrupt_disabled, %r10
-	testq %r10, %r10
+	movl interrupt_disabled, %r10d
+	testl %r10d, %r10d
 	jnz ret_panic
 	movq current, %r10
 	movq $0, 16(%r10) #current->ti = NULL

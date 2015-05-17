@@ -17,9 +17,6 @@
 #include <stdio.h>
 #include <compiler.h>
 
-void (*_init)() __attribute__((weak)) = NULL;
-void (*_fini)() __attribute__((weak)) = NULL;
-
 //no frame pointer to ruin our perfect stack
 __attribute__((optimize("omit-frame-pointer")))
 __noreturn void _start() {
@@ -28,17 +25,33 @@ __asm__ ("xor %rbp,%rbp\n\t" //Clear rbp
 	"pop %rsi\n\t" //Second arg = argc
 	"mov %rsp,%rdx\n\t" //Thrid arg = stack
 	"andq $-16,%rsp\n\t" //Aligh stack pointer
-	"mov $_fini,%r8\n\t" //5th = _fini
-	"mov $_init,%rcx\n\t" //4th = _init
 	"mov $main,%rdi\n\t" //First arg = main
 	"call __real_start\n\t"
 	"hlt");
 	__builtin_unreachable();
 }
 
+extern char __cwd[];
 void __real_start(int (*main)(int, char **, char **),
-		  int argc, char **argv) {
-	char** envp = argv+argc+1;
+		  int argc, char *rsp) {
+	if (*rsp != '\0')
+		strcpy(__cwd, rsp);
+
+	//Rebuild argv and envp
+	rsp = rsp+strlen(rsp)+1;
+	char **argv = ((char **)rsp)-argc-1;
+	for (int i = 0; i < argc; i++) {
+		argv[i] = rsp;
+		rsp += strlen(rsp)+1;
+	}
+	argv[argc] = NULL;
+
+	char **envp = argv-1;
+	*(envp--) = NULL;
+	while(*rsp) {
+		*(envp--) = rsp;
+		rsp += strlen(rsp)+1;
+	}
 	environ = envp;
 	exit(main(argc, argv, envp));
 }
