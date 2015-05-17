@@ -23,8 +23,9 @@ int lbend, rlh, rlt;
 static void outb(uint16_t port, uint8_t byte) {
 	struct portio_req preq;
 	int cookie;
-	preq.byte = byte;
+	preq.data = byte;
 	preq.type = 1;
+	preq.len = 1;
 	preq.port = port;
 	cookie = request(portio_fd, sizeof(preq), &preq);
 	close(cookie);
@@ -34,6 +35,7 @@ static uint8_t inb(uint16_t port) {
 	int cookie;
 	preq.type = 2;
 	preq.port = port;
+	preq.len = 1;
 	cookie = request(portio_fd, sizeof(preq), &preq);
 
 	struct response res;

@@ -8,6 +8,7 @@
 #include <uapi/port.h>
 #include <uapi/mem.h>
 #include <ipc.h>
+#include <errno.h>
 #define BLOCK_SIZE  512
 #define FS_SIZE     (BLOCK_SIZE * 64)
 #define INODE_BITMAP_START_INDEX    1
@@ -362,7 +363,7 @@ int read_sata_wrapper(struct file* fd, void *buf, int count)
 }
 
 //write blocks into SATA; calls write_sata() which really writes data.
-void write_sata_wrapper(struct file *fd, void *buf, int count)
+ssize_t write_sata_wrapper(struct file *fd, void *buf, int count)
 {
     int i;
     uint64_t data_index;
@@ -383,13 +384,12 @@ void write_sata_wrapper(struct file *fd, void *buf, int count)
     {
         data_index = get_free_data();
         set_data_bitmap(data_index);
-        
         //printk("new block allocated: %d\n", data_index);
         //no more free blocks
         if (data_index == -1)
         {
             printf("No more free blocks.\n");
-            return;
+            return -ENOSPC;
         }
         cur_inode -> i_data[cur_inode -> block_count++] = (int *)data_index;
         new_block_count--;
@@ -418,6 +418,7 @@ void write_sata_wrapper(struct file *fd, void *buf, int count)
 
     write_inode((uint64_t) fd -> inode, cur_inode);
     get_inode((uint64_t) fd -> inode, cur_inode);
+    return count;
 }
 
 struct dentry_reader* open_root_dir(char *path)
@@ -484,7 +485,7 @@ int close_sata_dir(struct dentry_reader* reader)
 void init_fs(void)
 {
     common_buf = (char *)malloc(4096);
-    memset(common_buf, 0, sizeof(common_buf) );
+    memset(common_buf, 0, 4096);
     int i;
     struct response res;
     struct mem_req req;

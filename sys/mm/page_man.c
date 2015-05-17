@@ -160,18 +160,18 @@ void unshare_page(struct page_entry *pe) {
 	list_del(&pe->owner_of);
 	if (pe->flags&PF_SHARED) {
 	//Unshare all other shared owners
-		struct page_entry *o;
-		list_for_each(&oldp->owner, o, owner_of) {
-			if (!(o->flags&PF_SHARED))
+		struct page_entry *oi, *onxt;
+		list_for_each_safe(&oldp->owner, oi, onxt, owner_of) {
+			if (!(oi->flags&PF_SHARED))
 				continue;
-			list_del(&o->owner_of);
+			list_del(&oi->owner_of);
 			oldp->ref_count--;
-			list_add(&p->owner, &o->owner_of);
-			o->p = p;
+			list_add(&p->owner, &oi->owner_of);
+			oi->p = p;
 			p->ref_count++;
 
 			//Remove old page table entry
-			uint64_t *pte = ptable_get_entry_4k(o->as->pml4, o->vaddr);
+			uint64_t *pte = ptable_get_entry_4k(oi->as->pml4, oi->vaddr);
 			if (pte)
 				*pte = 0;
 		}

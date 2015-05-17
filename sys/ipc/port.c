@@ -175,7 +175,7 @@ static int fds_check(int rw, struct fd_set *fds) {
 			continue;
 		struct request *req = current->fds->file[i];
 		if (!req) {
-			printk("Bad file descriptor\n");
+			printk("Bad file descriptor, %d\n", i);
 			return -EBADF;
 		}
 		if (!req->rops->available) {
@@ -255,12 +255,16 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 		if (!fd_is_set(&rfds, i))
 			continue;
 		struct request *req = current->fds->file[i];
+		if (!req)
+			continue;
 		req->waited_rw = 0;
 	}
 	for (int i = 0; i < wfds.nfds; i++) {
 		if (!fd_is_set(&wfds, i))
 			continue;
 		struct request *req = current->fds->file[i];
+		if (!req)
+			continue;
 		req->waited_rw = 0;
 	}
 	if (rbuf && ret == 0) {

@@ -26,6 +26,7 @@
 #define   EFAULT       14
 #define   EBUSY        16
 #define   EINVAL       22
+#define   ENOSPC       28
 #define   EMFILE       24
 #define   EPIPE        32
 #define   ERANGE       34

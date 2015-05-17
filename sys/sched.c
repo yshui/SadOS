@@ -14,6 +14,7 @@ struct task *tasks[32767], *idle_task;
 static struct obj_pool *task_pool = NULL;
 struct task *current, *to_kill;
 uint64_t kernel_stack;
+int current_pid;
 extern void switch_to(struct task *);
 static void kill_process(struct task *t) {
 	if (t == current)
@@ -72,6 +73,7 @@ void schedule(void) {
 	printk("%p\n", next);
 
 	printk("Next: %d, stack: %p\n", next->pid, next->krsp);
+	current_pid = next->pid;
 
 	//Switch cr3
 
@@ -203,7 +205,7 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 
 	if (flags & CT_SELF) {
 		destroy_as(current->as);
-		current->fds->file[as] = NULL;
+		current->astable->file[as] = NULL;
 		ti.r11 |= BIT(9); //Set IF
 		memcpy(current->ti, &ti, sizeof(ti));
 		current->as = _as;
@@ -219,7 +221,7 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 		return -ENOMEM;
 	}
 
-	current->fds->file[as] = NULL;
+	current->astable->file[as] = NULL;
 
 	struct task *ntask = new_process(_as, &ti);
 
@@ -239,7 +241,7 @@ SYSCALL(3, create_task, int, as, void *, buf, int, flags) {
 		new_req->owner = ntask;
 		new_req->waited_rw = 0;
 		new_req->type = req->type;
-		if (!req->rops->dup(req, new_req)) {
+		if (req->rops->dup(req, new_req) != 0) {
 			obj_pool_free(ntask->file_pool, new_req);
 			continue;
 		}

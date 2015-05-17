@@ -24,7 +24,6 @@ __noreturn void exit(int status) {
 	__builtin_unreachable();
 }
 sys1(get_physical, uint64_t, long)
-sys2(open, const char *, int, int)
 sys0(getpid, pid_t)
 sys0(getppid, pid_t)
 sys3(execve, const char *, char *const *, char *const *, int)

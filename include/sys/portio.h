@@ -30,6 +30,20 @@ static inline uint8_t inb(uint16_t port) {
 	);
 	return val;
 }
+static inline void outl(uint16_t port, uint32_t d) {
+	__asm__ volatile (
+		"outl %%eax, %%dx"
+		: : "d"(port), "a"(d)
+	);
+}
+static inline uint32_t inl(uint16_t port) {
+	uint32_t val;
+	__asm__ volatile (
+		"inl %%dx, %%eax"
+		: "=a"(val) : "d"(port)
+	);
+	return val;
+}
 static inline void io_wait(void) {
     __asm__ volatile ( "outb %%al, $0x80" : : "a"(0) );
 }

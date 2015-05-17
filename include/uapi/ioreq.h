@@ -11,6 +11,7 @@ enum io_type {
 
 struct io_req {
 	int type;
+	int flags;
 	size_t len;
 };
 

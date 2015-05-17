@@ -1,7 +1,6 @@
 #include <stdio.h>
 //#include <sys/printk.h>
 #include <sys/defs.h>
-#include <sys/portio.h>
 #include <ahci.h>
 #include <sys/mm.h>
 #include <string.h>
@@ -70,18 +69,28 @@ static int get_type(HBA_PORT *port)
         return AHCI_DEV_SATA;
     }
 }
-
-static inline void outl(uint16_t port, uint32_t val )
-{
-    __asm__ volatile( "outl %0, %1"
-    :: "a"(val), "Nd"(port) );
+extern int portio_fd;
+static inline void outl(uint16_t port, uint32_t val) {
+	struct portio_req preq;
+	int cookie;
+	preq.data = val;
+	preq.type = 1;
+	preq.len = 4;
+	preq.port = port;
+	cookie = request(portio_fd, sizeof(preq), &preq);
+	close(cookie);
 }
-static inline uint32_t inl( uint16_t port )
-{
-    uint32_t ret = 0;
-    __asm__ volatile( "inl %1, %0"
-    : "=a"(ret) : "Nd"(port) );
-    return ret;
+static inline uint32_t inl(uint16_t port) {
+	struct portio_req preq;
+	int cookie;
+	preq.type = 2;
+	preq.port = port;
+	preq.len = 4;
+	cookie = request(portio_fd, sizeof(preq), &preq);
+
+	struct response res;
+	get_response(cookie, &res);
+	return (uint32_t)(uint64_t)res.buf;
 }
  
 // Start command engine

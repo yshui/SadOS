@@ -29,13 +29,19 @@ int portio_request(struct request *req, struct request *reqc, size_t len, void *
 		return -EFAULT;
 	reqc->rops = &portio_rops;
 	if (preq.type == 1) {
-		printk("Writing %p to port %p\n", preq.byte, preq.port);
-		outb(preq.port, preq.byte);
+		printk("Writing %p to port %p\n", preq.data, preq.port);
+		if (preq.len == 1)
+			outb(preq.port, preq.data);
+		else if (preq.len == 4)
+			outl(preq.port, preq.data);
 		reqc->data = (void *)-1;
 		return 0;
 	} else if (preq.type == 2) {
-		reqc->data = (void *)(uint64_t)inb(preq.port);
-		printk("Read %p from port %p\n", req->data, preq.port);
+		if (preq.len == 1)
+			reqc->data = (void *)(uint64_t)inb(preq.port);
+		else
+			reqc->data = (void *)(uint64_t)inl(preq.port);
+		printk("Read %p from port %p\n", reqc->data, preq.port);
 		return 0;
 	}
 	return -EINVAL;

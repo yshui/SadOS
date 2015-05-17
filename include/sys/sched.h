@@ -5,6 +5,8 @@
 #include <sys/ipc.h>
 #include <uapi/thread.h>
 
+#define __SCHED_H__
+
 enum task_state {
 	TASK_RUNNABLE = 0,
 	TASK_RUNNING,

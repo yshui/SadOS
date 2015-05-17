@@ -93,11 +93,15 @@ int main() {
 	dup2(pd, 0);
 	dup2(0, 1);
 	printf("%d\n", pid);
-	as = asnew(AS_SNAPSHOT);
-	ti.rcx = (uint64_t) &fork_fs;
-	create_task(as, &ti, 0);
-
+	int pid2 = fork();
+	if (pid2 == 0)
+		fork_fs();
+	wait_on_port(6);
+	int fd = open("/bin/init", O_RDONLY);
 	char *buf = malloc(1024);
+	read(fd, buf, 4);
+	buf[4] = 0;
+	printf("%s\n", buf+1);
 	while(1) {
 		read(0, buf, 1024);
 		printf("%s\n", buf);

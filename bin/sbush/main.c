@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <uapi/ioreq.h>
+#include <ipc.h>
 
 int env_size, nenv;
 
@@ -189,6 +191,12 @@ int main(int argc, char **argv, char **envp) {
 			printf("Failed to dup2\n");
 			return 1;
 		}
+	} else {
+		//Send an io_req to become the foreground process
+		struct io_req req;
+		req.type = 3;
+		int cookie = request(0, sizeof(req), &req);
+		close(cookie);
 	}
 	if (!batch_mode)
 		printf("Type 'help' to list available commands\n");

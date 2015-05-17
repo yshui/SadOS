@@ -33,7 +33,7 @@ typedef struct inode
     int inode_id;
     int file_len;
     int block_count;
-    int *i_data[13];
+    int *i_data[15];
     uint16_t flags;
 } inode;
 
@@ -41,7 +41,7 @@ typedef struct dentry
 {
     struct super_block *d_sb;
     struct dentry *d_parent;
-    struct dentry *d_subdirs[24];
+    struct dentry *d_subdirs[30];
     char d_iname[30];
     int dentry_id; //same as inode ID below
     struct inode *d_inode;

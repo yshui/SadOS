@@ -13,12 +13,13 @@
  *    holder.
  */
 #pragma once
-
+extern int current_pid;
 extern int (*print_handler)(const char *);
 int _printk(const char *fmt, ...);
 #define printk(...) \
 	do { \
 		_printk("[" __FILE__ ":%d] ", __LINE__ ); \
+		_printk("(pid %d) ", current_pid); \
 		_printk(__VA_ARGS__); \
 	}while(0)
 
