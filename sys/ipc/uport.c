@@ -162,7 +162,12 @@ SYSCALL(2, pop_request, int, rd, void *, buf) {
 	list_del(&msg->next);
 	if (msg->plh)
 		page_list_free(msg->plh);
-	struct task *client_task = msg->client_req->owner;
+	struct task *client_task;
+	if (msg->client_req->type == REQ_COOKIE) {
+		struct request *oreq = msg->client_req->owner;
+		client_task = oreq->owner;
+	} else
+		client_task = msg->client_req->owner;
 	obj_pool_free(client_task->file_pool, msg);
 
 	if (req->type == REQ_PORT) {
@@ -207,6 +212,11 @@ SYSCALL(3, respond, int, fd, size_t, len, void *, buf) {
 	if (req->type != REQ_PORT_COOKIE)
 		goto end;
 
+	struct uport_cookie *upcookie = req->data;
+	ret = -EPIPE;
+	if (!upcookie->client_req)
+		goto end;
+
 	ret = -EFAULT;
 	struct page_list_head *plh = map_from_user(buf, len);
 	if (PTR_IS_ERR(plh))
@@ -215,7 +225,6 @@ SYSCALL(3, respond, int, fd, size_t, len, void *, buf) {
 	current->fds->file[fd] = NULL;
 	obj_pool_free(current->file_pool, req);
 
-	struct uport_cookie *upcookie = req->data;
 	if (plh)
 		upcookie->response = plh;
 	else
@@ -249,7 +258,8 @@ int uport_connect(int port, struct request *req, size_t len, void *buf) {
 	return 0;
 }
 
-int uport_request(struct request *req, size_t len, void *buf) {
+int uport_request(struct request *reqc, size_t len, void *buf) {
+	struct request *req = reqc->owner;
 	if (req->state == REQ_CLOSED)
 		//Server side has closed connection
 		return -EPIPE;
@@ -258,17 +268,20 @@ int uport_request(struct request *req, size_t len, void *buf) {
 		return -EAGAIN;
 
 	struct request *sreq = req->data;
+	if (!sreq)
+		panic("connection established but sreq not set\n");
 	struct page_list_head *plh = NULL;
 	if (buf || len) {
-		map_from_user(buf, len);
+		plh = map_from_user(buf, len);
 		if (PTR_IS_ERR(plh))
 			return -EFAULT;
 	}
 	struct message *msg = obj_pool_alloc(current->file_pool);
-	msg->client_req = req;
+	msg->client_req = reqc;
 	msg->plh = plh;
-	req->data = msg;
-	req->state = REQ_PENDING;
+	reqc->data = msg;
+	reqc->state = REQ_PENDING;
+	reqc->rops = &uport_client_rops;
 
 	struct uport_req *upreq = sreq->data;
 	list_add_tail(&upreq->incoming, &msg->next);
@@ -282,7 +295,7 @@ int uport_request(struct request *req, size_t len, void *buf) {
 int uport_get_response(struct request *req, struct response *res) {
 	if (req->type != REQ_COOKIE)
 		return -EBADF;
-	if (req->data == (void *)1) {
+	if (req->state == REQ_CLOSED) {
 		//Server side has closed connection
 		res->buf = NULL;
 		res->len = 0;
@@ -304,6 +317,8 @@ int uport_get_response(struct request *req, struct response *res) {
 
 	res->buf = (void *)(vaddr+upcookie->response->start_offset);
 	res->len = upcookie->response->npage*PAGE_SIZE;
+	page_list_free(upcookie->response);
+	obj_pool_free(upcookie->owner->file_pool, upcookie);
 	return 0;
 }
 
@@ -328,7 +343,12 @@ void uport_user_close(struct request *req) {
 		if (msg->plh)
 			page_list_free(msg->plh);
 
-		struct task *client_task = msg->client_req->owner;
+		struct task *client_task;
+		if (req->type == REQ_COOKIE) {
+			struct request *creq = msg->client_req->owner;
+			client_task = creq->owner;
+		} else
+			client_task = msg->client_req->owner;
 		obj_pool_free(client_task->file_pool, msg);
 		return;
 	}
@@ -373,6 +393,8 @@ int uport_user_available(struct request *req, int rw) {
 	struct uport_cookie *upcookie = req->data;
 	if (rw == 2)
 		return 0; //Can't write to a cookie
+	if (req->state == REQ_PENDING)
+		return 0;
 	return upcookie->response != NULL;
 }
 
@@ -430,6 +452,8 @@ void uport_server_close(struct request *req) {
 			list_for_each_safe(&upreq->clients, ri, rnxt, next_req) {
 				ri->state = REQ_CLOSED;
 				list_del(&ri->next_req);
+				if (ri->waited_rw)
+					wake_up(ri->owner);
 			}
 			list_for_each_safe(&upreq->incoming, mi, mnxt, next) {
 				if (mi->plh)
@@ -442,7 +466,13 @@ void uport_server_close(struct request *req) {
 			break;
 		case REQ_PORT_COOKIE:
 			upcookie = req->data;
-			upcookie->client_req->state = REQ_CLOSED;
+			if (upcookie->client_req) {
+				upcookie->client_req->state = REQ_CLOSED;
+				if (upcookie->client_req->waited_rw) {
+					struct request *oreq = upcookie->client_req->owner;
+					wake_up(oreq->owner);
+				}
+			}
 			if (upcookie->response)
 				panic("cookie already has a response, but it's still in fdtable\n");
 			obj_pool_free(current->file_pool, upcookie);

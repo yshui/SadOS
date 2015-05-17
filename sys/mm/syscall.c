@@ -96,3 +96,10 @@ end:
 	enable_interrupts();
 	return ret;
 }
+
+SYSCALL(2, munmap, void *, base, size_t, len) {
+	if (!IS_ALIGNED((uint64_t)base, PAGE_SIZE_BIT) || !IS_ALIGNED(len, PAGE_SIZE_BIT))
+		return -EINVAL;
+	remove_vma_range(current->as, (uint64_t)base, len);
+	return 0;
+}

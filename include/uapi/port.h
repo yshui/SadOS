@@ -1,5 +1,6 @@
 #pragma once
 #include <sys/defs.h>
+#include <string.h>
 struct response {
 	size_t len;
 	void *buf;
@@ -32,6 +33,7 @@ static inline int fd_is_set(struct fd_set *fds, int fd) {
 
 static inline void fd_zero(struct fd_set *fds) {
 	fds->nfds = 0;
+	memset(fds, 0, sizeof(*fds));
 }
 
 static inline void fd_clear(struct fd_set *fds, int fd) {
@@ -48,10 +50,7 @@ static inline int fd_set_empty(struct fd_set *fds) {
 		if (i*64 >= fds->nfds)
 			return ans == 0;
 
-		uint64_t mask = (uint64_t)-1;
-		if ((i+1)*64 >= fds->nfds)
-			mask = (1ull<<(fds->nfds-i*64))-1;
-		ans |= fds->bitmask[i]&mask;
+		ans |= fds->bitmask[i];
 	}
 	return ans == 0;
 }

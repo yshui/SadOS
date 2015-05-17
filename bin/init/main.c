@@ -79,7 +79,11 @@ int main() {
 	fd_set_set(&fds, pd);
 	wait_on(NULL, &fds, 0);
 
-	int cookie = request(pd, 5, "test");
-	close(cookie);
-	for(;;);
+	while(1) {
+		int cookie = request(pd, 5, "test");
+		fd_zero(&fds);
+		fd_set_set(&fds, cookie);
+		wait_on(&fds, NULL, 0);
+		close(cookie);
+	}
 }

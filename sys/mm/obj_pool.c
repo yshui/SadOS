@@ -47,7 +47,7 @@ void obj_pool_free(struct obj_pool *obp, void *obj) {
 	uint64_t tmp = (uint64_t)obj;
 	uint64_t tmp_aligned = ALIGN(tmp, PAGE_SIZE_BIT);
 	if ((tmp-tmp_aligned-sizeof(struct page_hdr))%obp->obj_size != 0)
-		panic("Invalid object free %p %p %d\n", tmp, tmp_aligned, obp->obj_size);
+		panic("Invalid object free %p %p %p\n", tmp, tmp_aligned, obp->obj_size);
 
 	struct free_obj *free_obj = obj;
 	free_obj->next = obp->free_list;

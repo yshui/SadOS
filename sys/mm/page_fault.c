@@ -19,7 +19,7 @@ uint64_t page_fault_handler(uint64_t err) {
 	disable_interrupts();
 	struct vm_area *vma = vma_find_by_vaddr(current->as, vaddr);
 	if (PTR_IS_ERR(vma)) {
-		printk("User space trying to access invalid memory\n");
+		printk("User space trying to access invalid memory, pid=%d\n", current->pid);
 		kill_current(1);
 		return 1; //Reschedule
 	}

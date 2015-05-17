@@ -98,15 +98,16 @@ SYSCALL(3, request, int, rd, size_t, len, void *, buf) {
 		return -EMFILE;
 	}
 
-	enable_interrupts();
 
 	int ret = req->rops->request(reqc, len, buf);
 	if (ret != 0) {
 		obj_pool_free(current->file_pool, req);
 		current->fds->file[fd] = NULL;
+		enable_interrupts();
 		return ret;
 	}
 	printk("Return\n");
+	enable_interrupts();
 	return fd;
 }
 
@@ -132,6 +133,10 @@ SYSCALL(2, get_response, int, cookie, struct response *, res) {
 	long ret = req->rops->get_response(req, &xres);
 	if (ret != 0)
 		goto end;
+	if (req->type == REQ_COOKIE) {
+		current->fds->file[cookie] = NULL;
+		obj_pool_free(current->file_pool, req);
+	}
 	ret = copy_to_user_simple(&xres, res, sizeof(struct response));
 end:
 	enable_interrupts();
@@ -191,8 +196,8 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 	disable_interrupts();
 	printk("Entering wait_on\n");
 	int ret;
-	rfds.nfds = 0;
-	wfds.nfds = 0;
+	fd_zero(&rfds);
+	fd_zero(&wfds);
 	if (rbuf) {
 		ret = copy_from_user_simple(rbuf, &rfds, sizeof(rfds));
 		if (ret != 0) {
@@ -270,3 +275,16 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 	return ret;
 }
 
+#if 0
+SYSCALL(2, dup, int, old_fd, int, new_fd) {
+	if (old_fd < 0 || old_fd )
+	int fd;
+	struct request *new_req = obj_pool_alloc(current->file_pool);
+	new_req->owner = current;
+	new_req->waited_rw = 0;
+	new_req->type = req->type;
+	if (new_fd < 0) {
+		fd = fdtable_insert
+	}
+}
+#endif
