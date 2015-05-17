@@ -38,7 +38,7 @@
 #include <sys/service.h>
 #include <string.h>
 #include <sys/tarfs.h>
-#include <sys/ahci.h>
+//#include <sys/ahci.h>
 #include <uapi/thread.h>
 #include <vfs.h>
 char buf[20000] = {0};

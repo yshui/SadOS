@@ -3,6 +3,10 @@
 enum io_type {
 	IO_READ,
 	IO_WRITE,
+    IO_OPEN,
+    IO_OPENDIR,
+    IO_READDIR,
+    IO_LSEEK
 };
 
 struct io_req {

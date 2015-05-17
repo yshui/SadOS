@@ -52,6 +52,22 @@ void fork_entry_here(void) {
 	execvm((char *)thdr+512, &argv, &env);
 	for(;;); //Shouldn't be reached
 }
+void fork_fs(void) {
+	struct tar_header *thdr = tar_begin;
+	while ((void *)thdr < tar_begin+tar_len) {
+		char *n = thdr->name;
+		if (*n == '/')
+			n++;
+		if (strcmp(n, "bin/fs") == 0)
+			break;
+		uint64_t size = atoi_oct(thdr->size);
+		thdr = (void *)((char *)thdr+512+ALIGN_UP(size, 9));
+	}
+	char *argv = NULL;
+	char *env = NULL;
+	execvm((char *)thdr+512, &argv, &env);
+	for(;;); //Shouldn't be reached
+}
 int main() {
 	bootstrap();
 	X='b';
@@ -68,6 +84,7 @@ int main() {
 	ti.rcx = (uint64_t)&fork_entry_here;
 	create_task(as, &ti, 0);
 
+
 	wait_on_port(5);
 	int pd = port_connect(5, 0, NULL);
 	struct fd_set fds;
@@ -75,6 +92,9 @@ int main() {
 	wait_on(NULL, &fds, 0);
 	dup2(pd, 0);
 	dup2(0, 1);
+    as = asnew(AS_SNAPSHOT);
+    ti.rcx = (uint64_t) &fork_fs;
+    create_task(as, &ti, 0);
 
 	char *buf = malloc(1024);
 	while(1) {
