@@ -16,7 +16,7 @@
 #define NR_wait_on         13
 #define NR_wait_on_port    14
 #define NR_munmap          15
-#define NR_dup             16
+#define NR_dup0            16
 
 //Deprecated
 #define NR_read        0
@@ -28,7 +28,6 @@
 //#define NR_munmap     11
 #define NR_brk        12
 #define NR_pipe       22
-#define NR_dup2       33
 #define NR_nanosleep  35
 #define NR_alarm      37
 #define NR_getpid     39

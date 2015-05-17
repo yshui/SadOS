@@ -275,16 +275,38 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 	return ret;
 }
 
-#if 0
-SYSCALL(2, dup, int, old_fd, int, new_fd) {
-	if (old_fd < 0 || old_fd )
+SYSCALL(2, dup0, int, old_fd, int, new_fd) {
+	if (old_fd < 0 || old_fd >= current->fds->max_fds || !current->fds->file[old_fd])
+		return -EBADF;
+	if (new_fd >= current->fds->max_fds)
+		return -EBADF;
+	if (new_fd >= 0 && current->fds->file[new_fd])
+		return -EBUSY;
+
+	struct request *req = current->fds->file[old_fd];
 	int fd;
 	struct request *new_req = obj_pool_alloc(current->file_pool);
 	new_req->owner = current;
 	new_req->waited_rw = 0;
 	new_req->type = req->type;
 	if (new_fd < 0) {
-		fd = fdtable_insert
+		fd = fdtable_insert(current->fds, new_req);
+		if (fd < 0) {
+			obj_pool_free(current->file_pool, new_req);
+			return -EMFILE;
+		}
+	} else {
+		fd = new_fd;
+		current->fds->file[new_fd] = new_req;
 	}
+
+	int ret = 0;
+	if (req->rops->dup)
+		ret = req->rops->dup(req, new_req);
+	if (ret != 0) {
+		current->fds->file[fd] = NULL;
+		obj_pool_free(current->file_pool, new_req);
+		return ret;
+	}
+	return fd;
 }
-#endif

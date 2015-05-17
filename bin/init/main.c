@@ -8,6 +8,7 @@
 #include <bitops.h>
 #include <sendpage.h>
 #include <sys/tar.h>
+#include <stdio.h>
 //.bss in init can't exceed 1MB
 char X;
 void bootstrap(void){
@@ -78,12 +79,10 @@ int main() {
 	struct fd_set fds;
 	fd_set_set(&fds, pd);
 	wait_on(NULL, &fds, 0);
+	dup2(pd, 0);
+	dup2(pd, 1);
 
-	while(1) {
-		int cookie = request(pd, 5, "test");
-		fd_zero(&fds);
-		fd_set_set(&fds, cookie);
-		wait_on(&fds, NULL, 0);
-		close(cookie);
-	}
+	int i = 0;
+	while(1)
+		printf("test%d\n", i);
 }
