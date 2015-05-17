@@ -180,9 +180,15 @@ void memory_init(struct smap_t *smap, int smap_len) {
 	uint64_t *pd = (void *)endaddr;
 	endaddr += 0x1000;
 	memset(pd, 0, 4096);
+
+	//Map 2 2M pages
 	entry = pte_set_base(0, (uint64_t)&physbase, 1);
 	entry |= PTE_P|PTE_W;
 	pd[(kbase>>21)&0x1ff] = entry;
+
+	entry = pte_set_base(0, (uint64_t)&physbase+0x200000, 1);
+	entry |= PTE_P|PTE_W;
+	pd[((kbase>>21)&0x1ff)+1] = entry;
 
 	//Self-referencing
 	entry = pte_set_base(0, (uint64_t)pml4-(uint64_t)&physoffset, 0);
