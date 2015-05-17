@@ -11,23 +11,15 @@
 #include <stdio.h>
 //.bss in init can't exceed 1MB
 char X;
+void clear_free(void);
 void bootstrap(void){
 	//The kernel doesn't really load elf properly
 	//So let's bootstrap ourself
+	//Clear .bss range
+	clear_free();
 	struct elf_info *ei = elf_load((void *)0x400000);
-	//Map .got
-	struct elf_section_info *esi = elf_find_section(ei, ".got");
-	memcpy((void *)esi->hdr->sh_addr, esi->section_base, esi->hdr->sh_size);
-	free(esi);
-
-	//Map .got.plt
-	esi = elf_find_section(ei, ".got.plt");
-	memcpy((void *)esi->hdr->sh_addr, esi->section_base, esi->hdr->sh_size);
-	free(esi);
-
-	//Map .data
-	esi = elf_find_section(ei, ".data");
-	memcpy((void *)esi->hdr->sh_addr, esi->section_base, esi->hdr->sh_size);
+	struct elf_section_info *esi = elf_find_section(ei, ".bss");
+	memset((void *)esi->hdr->sh_addr, 0, esi->hdr->sh_size);
 	free(esi);
 	free(ei);
 }
@@ -58,7 +50,6 @@ void fork_entry_here(void) {
 	for(;;); //Shouldn't be reached
 }
 int main() {
-	syscall_1(0, 42);
 	bootstrap();
 	X='b';
 	struct thread_info ti;

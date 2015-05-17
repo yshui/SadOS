@@ -55,8 +55,21 @@ int page_unref(struct page *p, int hw) {
 int page_entry_unref(struct page_entry *pe) {
 	disable_interrupts();
 	struct page *p = pe->p;
-	if (pe->flags & PF_SNAPSHOT)
+	if (pe->flags & PF_SNAPSHOT) {
 		p->snap_count--;
+		if (p->snap_count == 0) {
+			//Restore write permissions
+			struct page_entry *o;
+			list_for_each(&p->owner, o, owner_of) {
+				if (!(o->flags&PF_SHARED))
+					panic("snap_count == 0 but has snapshot\n");
+
+				uint64_t *pte = ptable_get_entry_4k(o->as->pml4, o->vaddr);
+				if (pte && ((*pte)&PTE_P))
+					*pte |= PTE_W;
+			}
+		}
+	}
 	page_unref(pe->p, pe->flags&PF_HARDWARE);
 	enable_interrupts();
 	return 0;
@@ -173,7 +186,7 @@ void unshare_page(struct page_entry *pe) {
 					panic("snap_count == 0 but has snapshot\n");
 
 				uint64_t *pte = ptable_get_entry_4k(o->as->pml4, o->vaddr);
-				if (pte && *pte&PTE_P)
+				if (pte && ((*pte)&PTE_P))
 					*pte |= PTE_W;
 			}
 		}

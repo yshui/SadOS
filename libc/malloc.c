@@ -32,6 +32,10 @@ struct _hdr {
 
 static struct _hdr *_free[13];
 
+void clear_free(void) {
+	memset(_free, 0, sizeof(_free));
+}
+
 void *alloc_new(size_t *s) {
 	*s = ALIGN_UP(*s, 12);
 	return sendpage(0, 0, 0, *s);

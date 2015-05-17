@@ -28,7 +28,7 @@ uint64_t vma_get_base(struct vm_area *vma) {
 void unassign_page(struct page_entry *pe) {
 	disable_interrupts();
 	struct address_space *as = pe->as;
-	printk("Unassign page %p(%p), ref %d\n", pe->vaddr, pe->p->phys_addr, pe->p->ref_count);
+	printk("Unassign page %p(%p), ref %d, snap %d\n", pe->vaddr, pe->p->phys_addr, pe->p->ref_count, pe->p->snap_count);
 	binradix_delete(as->vaddr_map, pe->vaddr);
 	list_del(&pe->owner_of);
 	list_del(&pe->siblings);

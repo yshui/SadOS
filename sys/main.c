@@ -90,6 +90,8 @@ __noreturn void start_init(void) {
 	user_as->as_flags = AS_LAZY;
 	struct vm_area *image_vma =
 	    insert_vma_to_vaddr(user_as, user_addr, ALIGN_UP(init_size, PAGE_SIZE_BIT), 0);
+	struct vm_area *image_vma2 =
+	    insert_vma_to_vaddr(user_as, user_addr+0x200000, ALIGN_UP(init_size, PAGE_SIZE_BIT), VMA_RW);
 	//Copy /bin/init into user space memory
 	while (init_size) {
 		char *page = get_page();
@@ -105,6 +107,7 @@ __noreturn void start_init(void) {
 		uint64_t phys_addr = ((uint64_t)page)-KERN_VMBASE;
 		printk("Start init: %p\n", user_addr);
 		address_space_assign_addr_with_vma(image_vma, phys_addr, user_addr, PF_SHARED);
+		address_space_assign_addr_with_vma(image_vma2, phys_addr, user_addr+0x200000, PF_SHARED);
 		user_addr += PAGE_SIZE;
 	}
 
@@ -117,14 +120,6 @@ __noreturn void start_init(void) {
 	uint64_t phys_addr = ((uint64_t)page)-KERN_VMBASE;
 	insert_vma_to_vaddr(user_as, user_addr, PAGE_SIZE, VMA_RW);
 	address_space_assign_addr(user_as, phys_addr, user_addr, PF_SHARED);
-
-	//Map a large enough range to 0x600000
-	insert_vma_to_vaddr(user_as, 0x600000, PAGE_SIZE*256, VMA_RW);
-
-
-	//Map 0xb8000 to 0x10000 so init can show something
-	//insert_vma_to_vaddr(user_as, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT), VMA_RW);
-	//address_space_assign_addr_range(user_as, 0xb8000, 0x10000, ALIGN_UP(25*80*2, PAGE_SIZE_BIT));
 
 	//Hard coded entry point for init
 	struct thread_info ti;

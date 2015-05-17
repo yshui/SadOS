@@ -85,7 +85,7 @@ void reload_gdt() {
 	_x86_64_asm_lgdt(&gdtr, KERN_CS*8, KERN_DS*8);
 
 	//Set STAR, LSTAR
-	uint64_t star = (0x18ull<<48)|((KERN_CS*8ull)<<32); //0x1b is 0x18|3, USER_CS-0x10|RPL=3
+	uint64_t star = (0x1bull<<48)|((KERN_CS*8ull)<<32); //0x1b is 0x18|3, USER_CS-0x10|RPL=3
 	wrmsr(0xc0000081, star);
 
 	uint64_t lstar = (uint64_t)syscall_entry;
