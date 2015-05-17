@@ -22,6 +22,7 @@ char *strdup(const char *);
 int strncmp(const char *, const char *, int);
 int strcmp(const char *, const char *);
 char *strcpy(char *, const char *);
+char *strncpy(char *, const char *, int);
 char *strcat(char *, const char *);
 
 void *memcpy(void *, const void *, size_t);

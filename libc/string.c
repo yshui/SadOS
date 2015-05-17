@@ -82,6 +82,18 @@ int strncmp(const char *a, const char *b, int n) {
 	return 0;
 }
 
+char *strncpy(char *dest, const char *source, int count)
+{
+    int i;
+    for (i = 0;i < count; ++i) {
+        dest[i] = source[i];
+	if (!source[i])
+		break;
+    }
+    dest[i] = '\0';
+    return dest;
+}
+
 int strcmp(const char *a, const char *b) {
 	while (*a || *b) {
 		if (*a < *b)

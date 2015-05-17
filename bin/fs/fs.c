@@ -4,11 +4,11 @@
 #include <stdlib.h>
 //#include <sys/mm.h>
 //#include <sys/printk.h>
-#include <ahci.h>
 #include <uapi/port.h>
 #include <uapi/mem.h>
 #include <ipc.h>
 #include <errno.h>
+#include "ahci.h"
 #define BLOCK_SIZE  512
 #define FS_SIZE     (BLOCK_SIZE * 64)
 #define INODE_BITMAP_START_INDEX    1
@@ -30,36 +30,28 @@ char fs[FS_SIZE];
 //a common buffer in kernel space, used for read/write file
 char *common_buf;
 char inode_bitmap[BLOCK_SIZE + 2], dentry_bitmap[BLOCK_SIZE + 2], data_bitmap[BLOCK_SIZE + 2];
-
+struct port_data **pdtable;
 //given index, get block from hard disk
 char *get_block(int index)
 {
     //for hard disk, return a block of data
-    read_sata(&abar -> ports[0], index + DATA_START_INDEX, 0, 1, common_buf);
+    read_sata(pdtable[0], index + DATA_START_INDEX, 0, 1, common_buf);
     return common_buf;
-}
-
-void strncpy(char *dest, char *source, int count)
-{
-    int i;
-    for (i = 0;i < count;++i)
-        dest[i] = source[i];
-    dest[count] = '\0';
 }
 
 void read_inode_bitmap(char *inode_bitmap)
 {
-    read_sata(&abar -> ports[0], INODE_BITMAP_START_INDEX, 0, 1, common_buf);
+    read_sata(pdtable[0], INODE_BITMAP_START_INDEX, 0, 1, common_buf);
     strncpy(inode_bitmap, common_buf, BLOCK_SIZE);
 }
 void read_data_bitmap(char *data_bitmap)
 {
-    read_sata(&abar -> ports[0], DATA_BITMAP_START_INDEX, 0, 1, common_buf);
+    read_sata(pdtable[0], DATA_BITMAP_START_INDEX, 0, 1, common_buf);
     strncpy(data_bitmap, common_buf, BLOCK_SIZE);
 }
 void read_dentry_bitmap(char *dentry_bitmap)
 {
-    read_sata(&abar -> ports[0], DENTRY_BITMAP_START_INDEX, 0, 1, common_buf);
+    read_sata(pdtable[0], DENTRY_BITMAP_START_INDEX, 0, 1, common_buf);
     strncpy(dentry_bitmap, common_buf, BLOCK_SIZE);
 }
 
@@ -100,21 +92,21 @@ void set_inode_bitmap(int inode_id)
     read_inode_bitmap(inode_bitmap);
     inode_bitmap[inode_id] = 1;
     strncpy(common_buf, inode_bitmap, BLOCK_SIZE);
-    write_sata(&abar -> ports[0], INODE_BITMAP_START_INDEX, 0, 1, common_buf);
+    write_sata(pdtable[0], INODE_BITMAP_START_INDEX, 0, 1, common_buf);
 }
 void set_data_bitmap(int data_id)
 {
     read_data_bitmap(data_bitmap);
     data_bitmap[data_id] = 1;
     strncpy(common_buf, data_bitmap, BLOCK_SIZE);
-    write_sata(&abar -> ports[0], DATA_BITMAP_START_INDEX, 0, 1, common_buf);
+    write_sata(pdtable[0], DATA_BITMAP_START_INDEX, 0, 1, common_buf);
 }
 void set_dentry_bitmap(int dentry_id)
 {
     read_dentry_bitmap(dentry_bitmap);
     dentry_bitmap[dentry_id] = 1;
     strncpy(common_buf, dentry_bitmap, BLOCK_SIZE);
-    write_sata(&abar -> ports[0], DENTRY_BITMAP_START_INDEX, 0, 1, common_buf);
+    write_sata(pdtable[0], DENTRY_BITMAP_START_INDEX, 0, 1, common_buf);
 }
 
 void build_inode(int inode_id, uint16_t flags)
@@ -122,7 +114,7 @@ void build_inode(int inode_id, uint16_t flags)
     //set bitmap
     set_inode_bitmap(inode_id);
     int inode_block_id = inode_id / 4, inode_block_offset = inode_id % 4;
-    read_sata(&abar -> ports[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
+    read_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
     //struct inode *new_inode = (struct inode*) (fs + INODE_START_ADDR + inode_id * sizeof(struct inode));
     struct inode *new_inode = (struct inode*) common_buf;
     new_inode += inode_block_offset;
@@ -135,7 +127,7 @@ void build_inode(int inode_id, uint16_t flags)
     for (i = 0;i < 13;++i)
         new_inode -> i_data[i] = 0;
     new_inode -> flags = flags;
-    write_sata(&abar -> ports[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
+    write_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
 }
 
 void build_dentry(uint64_t inode_id, uint64_t dentry_id, uint64_t d_parent, const char* d_iname)
@@ -143,7 +135,7 @@ void build_dentry(uint64_t inode_id, uint64_t dentry_id, uint64_t d_parent, cons
     //set bitmap
     set_dentry_bitmap(dentry_id);
     int dentry_block_id = dentry_id / 2, dentry_block_offset = dentry_id % 2;
-    read_sata(&abar -> ports[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+    read_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
     struct dentry *new_dentry = (struct dentry*) (common_buf);
     new_dentry += dentry_block_offset;
     new_dentry -> d_parent = (struct dentry*) d_parent;
@@ -159,24 +151,24 @@ void build_dentry(uint64_t inode_id, uint64_t dentry_id, uint64_t d_parent, cons
     //printk("common buf for dentry1: %s\n", new_dentry -> d_iname);
     //printk("common buf for dentry2: %s\n", new_dentry -> d_iname);
 
-    write_sata(&abar -> ports[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+    write_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
 }
 
 void write_dentry(int inode_index, struct dentry* dentry_block)
-{ 
+{
     int dentry_block_id = inode_index / 2, dentry_block_offset = inode_index % 2;
     char *dentry_block_ptr = (char *)dentry_block;
-    read_sata(&abar -> ports[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+    read_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
     struct dentry* common_buf_ptr = (struct dentry*)common_buf;
     common_buf_ptr += dentry_block_offset;
     strncpy((char *)common_buf_ptr, dentry_block_ptr, sizeof(struct dentry) );
-    write_sata(&abar -> ports[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+    write_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
 }
 void get_dentry(int inode_index, struct dentry* dentry_block)
 {
     int dentry_block_id = inode_index / 2, dentry_block_offset = inode_index % 2;
     char *dentry_block_ptr = (char *)dentry_block;
-    read_sata(&abar -> ports[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+    read_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
     struct dentry* common_buf_ptr = (struct dentry*)common_buf;
     common_buf_ptr += dentry_block_offset;
     strncpy(dentry_block_ptr, (char *)common_buf_ptr, sizeof(struct dentry) );
@@ -185,17 +177,17 @@ void get_dentry(int inode_index, struct dentry* dentry_block)
 void write_inode(int inode_index, struct inode* inode_block)
 {
     int inode_block_id = inode_index / 4, inode_block_offset = inode_index % 4;
-    read_sata(&abar -> ports[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
+    read_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
     struct inode* common_buf_ptr = (struct inode*) common_buf;
     common_buf_ptr += inode_block_offset;
-    strncpy( (char *)common_buf_ptr, (char *)inode_block, sizeof(struct inode) );    
-    write_sata(&abar -> ports[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
+    strncpy( (char *)common_buf_ptr, (char *)inode_block, sizeof(struct inode) );
+    write_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
 }
 
 void get_inode(int inode_index, struct inode* inode_block)
 {
     int inode_block_id = inode_index / 4, inode_block_offset = inode_index % 4;
-    read_sata(&abar -> ports[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
+    read_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
     struct inode* common_buf_ptr = (struct inode*) common_buf;
     common_buf_ptr += inode_block_offset;
     strncpy((char *)inode_block, (char *)common_buf_ptr, sizeof(struct inode) );
@@ -203,16 +195,16 @@ void get_inode(int inode_index, struct inode* inode_block)
 
 void get_data(uint64_t data_index, char *data_block, int offset, int count)
 {
-    read_sata(&abar -> ports[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
+    read_sata(pdtable[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
     //printk("Reading common buf: %s %d\n", common_buf, offset);
     strncpy(data_block, common_buf + offset, count);
 }
 void write_data(int data_index, char *data, int offset, int count)
 {
-    read_sata(&abar -> ports[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
+    read_sata(pdtable[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
     strncpy(common_buf + offset, data, count);
     //printk("Writing common buf: %s %d\n", common_buf + offset, offset);
-    write_sata(&abar -> ports[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
+    write_sata(pdtable[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
 }
 
 int sata_get_parent(const char *cur_dentry_name)
@@ -499,9 +491,9 @@ void init_fs(void)
 
     //abar = (HBA_MEM*) (KERN_VMBASE + bar5); 
     abar = res.buf;
-    probe_port(abar);
+    pdtable = probe_port(abar);
     for (i = 0;i < TOTAL_BLOCK_COUNT;++i)
-        write_sata(&abar -> ports[0], i, 0, 1, common_buf);
+        write_sata(pdtable[0], i, 0, 1, common_buf);
 
     struct super_block *super_block = &cur_super_block;
     super_block -> free_block_count = DATA_BLOCK_COUNT;
