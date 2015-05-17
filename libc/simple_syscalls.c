@@ -23,6 +23,7 @@ __noreturn void exit(int status) {
 	syscall_1(NR_exit, (uint64_t)status);
 	__builtin_unreachable();
 }
+sys1(get_physical, uint64_t, long)
 sys2(open, const char *, int, int)
 sys0(fork, pid_t)
 sys0(getpid, pid_t)

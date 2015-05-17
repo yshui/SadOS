@@ -17,6 +17,7 @@
 #define NR_wait_on_port    14
 #define NR_munmap          15
 #define NR_dup0            16
+#define NR_get_physical    17
 
 //Deprecated
 #define NR_open        2
