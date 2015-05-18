@@ -11,6 +11,7 @@
 #include <stdio.h>
 //.bss in init can't exceed 1MB
 char X;
+char *_environ = NULL;
 void clear_free(void);
 extern char __cwd[];
 void bootstrap(void){
@@ -25,6 +26,7 @@ void bootstrap(void){
 	free(ei);
 
 	strcpy(__cwd, "/");
+	environ = &_environ;
 }
 static void *tar_begin;
 static size_t tar_len;
