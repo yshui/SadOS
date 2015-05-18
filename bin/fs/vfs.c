@@ -427,13 +427,14 @@ int main()
 
                         struct io_res *rs = malloc(sizeof(struct io_res) + sizeof(struct dentry) + 1);
                         if (ret != NULL)
+                        {
                             rs -> len = sizeof(struct dentry);
+                            memcpy((char *)(rs + 1), (char*)ret, sizeof(struct dentry));
+                        }
                         else
                             rs -> len = 0;
                         rs -> err = 0;
-                        printf("rs len: %d\n", rs->len);
-                        memcpy((char *)(rs + 1), (char*)ret, sizeof(struct dentry));
-                        printf("rs len: %d\n", rs->len);
+                        //printf("rs len: %d\n", rs->len);
                         respond(cookie, sizeof(struct io_res) + sizeof(struct dentry) + 1, rs);
                     }
                     else if (x -> type == IO_LSEEK)

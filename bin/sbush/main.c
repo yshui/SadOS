@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <uapi/ioreq.h>
 #include <ipc.h>
+#include <vfs.h>
 
 int env_size, nenv;
 
@@ -92,6 +93,50 @@ static inline int builtin_exit(struct pipe_part *p) {
 	exit(0);
 	return 0;
 }
+static inline int builtin_ls(struct pipe_part *p)
+{
+    //printf("In ls here: %s\n", pathname);
+    int ret;
+    //char *pathname = p -> argv0 -> next -> str;
+    char *pathname = getcwd(NULL, 0);
+    int fd = opendir(pathname);
+    //struct dentry_reader *p = NULL;
+    struct dentry *de = (struct dentry*) malloc(sizeof(struct dentry));
+    if (fd < 0)
+    {
+        printf("Cannot open directory %s.\n", pathname);
+        return -1;
+    }
+    do {
+        ret = readdir(fd, (void*)de);
+        //printf("ret : %d\n", ret);
+        if (ret)
+            printf("%s\n", de->d_iname);
+    }
+    while(ret);
+    return 0;
+}
+
+static inline int builtin_cat(struct pipe_part *p)
+{
+    char *pathname = p -> argv0 -> next -> str;
+    //printf("Real path name for cat: %s\n", cur_dir);
+    int fd = open(pathname, 0);
+    if (fd < 0)
+    {
+        printf("Error: file doesn't exist\n");
+        return -1;
+    }
+    uint64_t fd_int = (uint64_t) fd;
+    //printf("fd: %d\n", fd);
+    char buf[513];
+    int count;
+
+    while ( (count = read(fd_int, buf, 513) ) != 0)
+        printf("%s", buf);
+    printf("\n");
+    return 0;
+}
 
 static inline int builtin_help(struct pipe_part *p) {
 	printf("touch file: touch\n");
@@ -102,6 +147,8 @@ static inline int builtin_help(struct pipe_part *p) {
 	printf("pwd: Get current working directory\n");
 	printf("path/to/binary: Execute binary file\n");
 	printf("binary: Execute binary in PATH\n");
+    printf("cat: show file content\n");
+    printf("ls: list files in a path\n");
 	printf("path/to/binary1 | path/to/binary2 | ...: Execute pipelines of "
 	    "binaries\n");
 	return 0;
@@ -201,10 +248,21 @@ struct builtin_cmd {
 	{ .name = "quit", .handler = builtin_exit },
 	{ .name = "help", .handler = builtin_help },
 	{ .name = "echo", .handler = builtin_echo },
+    { .name = "ls", .handler = builtin_ls},
+    { .name = "cat", .handler = builtin_cat},
 	{ .name = NULL, .handler = NULL }
 };
 static int batch_mode = false;
 int main(int argc, char **argv, char **envp) {
+    //file writing
+    int fd = open("/tarfs/test/f", 0);
+    int fd1 = open("/sata/f", O_CREAT);
+    //printf("fd assigned: %d\n", fd);
+    char buf[513];
+    //copying a file
+    while (read(fd, buf, 512) != 0)
+        write(fd1, buf, 512);
+
 	if (argc > 1) {
 		batch_mode = true;
 		int infd = open(argv[1], O_RDONLY);
