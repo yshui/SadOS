@@ -24,7 +24,6 @@
 
 #define _HUGE BIT(4)
 #define _FREE BIT(5)
-
 struct _hdr {
 	struct _hdr *next, **prev;
 	uint8_t flags;
@@ -126,7 +125,7 @@ void free(void *ptr){
 	}
 
 	struct _hdr *buddy = (void *)((uint64_t)x^(1<<x->flags));
-	if (buddy->flags & _FREE) {
+	if (buddy->flags == (_FREE|x->flags)) {
 		//Remove buddy from list
 		*(buddy->prev) = buddy->next;
 		if (buddy->next)
