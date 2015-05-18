@@ -116,11 +116,7 @@ void free(void *ptr){
 
 	if (x->flags & _HUGE) {
 		uint64_t size = (uint64_t)x->next;
-		uint8_t *tmp = (void *)x;
-		for (int i = 0; i < size; i+=0x1000) {
-			struct _hdr *y = (void *)(tmp+i);
-			insert(12, y);
-		}
+		munmap(x, size);
 		return;
 	}
 

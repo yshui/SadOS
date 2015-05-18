@@ -48,7 +48,7 @@ static int mapper(const void *base, const struct elf64_phdr *ph, void *d) {
 	return 0;
 }
 //Execute an in-memory elf image
-int execvm(const char *base, char * const* argv, char * const *environ) {
+int execvm(const char *base, char * const* argv, char * const *envp) {
 	int as = asnew(0);
 	//Parse elf and send pages to the new address space
 	struct elf_info *ei = elf_load(base);
@@ -65,15 +65,19 @@ int execvm(const char *base, char * const* argv, char * const *environ) {
 
 	//Allocate memory, put argument on it, then map it as stack
 	uint64_t envsz = 0, envcnt = 0;
-	for (int i = 0; environ[i]; i++) {
-		envsz += strlen(environ[i])+1;
-		envcnt++;
+	if (envp) {
+		for (int i = 0; envp[i]; i++) {
+			envsz += strlen(envp[i])+1;
+			envcnt++;
+		}
 	}
 
 	uint64_t argvsz = 0, argc = 0;
-	for (int i = 0; argv[i]; i++) {
-		argvsz += strlen(argv[i])+1;
-		argc++;
+	if (argv) {
+		for (int i = 0; argv[i]; i++) {
+			argvsz += strlen(argv[i])+1;
+			argc++;
+		}
 	}
 
 	uint64_t size = strlen(__cwd)+1+envsz+argvsz+2+8;
@@ -82,21 +86,25 @@ int execvm(const char *base, char * const* argv, char * const *environ) {
 	strcpy(dataptr, __cwd);
 	dataptr += strlen(__cwd)+1;
 
-	for (int i = 0; argv[i]; i++) {
-		strcpy(dataptr, argv[i]);
-		dataptr += strlen(argv[i])+1;
+	if (argv) {
+		for (int i = 0; argv[i]; i++) {
+			strcpy(dataptr, argv[i]);
+			dataptr += strlen(argv[i])+1;
+		}
 	}
 	*(dataptr++) = 0;
-	for (int i = 0; environ[i]; i++) {
-		strcpy(dataptr, environ[i]);
-		dataptr += strlen(environ[i])+1;
+	if (envp) {
+		for (int i = 0; envp[i]; i++) {
+			strcpy(dataptr, envp[i]);
+			dataptr += strlen(envp[i])+1;
+		}
 	}
 	*(dataptr++) = 0;
 	*(uint64_t *)(page+4096-size) = argc;
 
-	page = sendpage(as, (uint64_t)page, 0, ALIGN_UP(size, 12));
-	//Map another 1MB to stack
-	sendpage(as, 0, (uint64_t)page-0x100000, 0x100000);
+	//Map 1MB to stack
+	void *stack = sendpage(as, 0, 0, 0x100000);
+	page = sendpage(as, (uint64_t)page, (uint64_t)(stack+0x100000), ALIGN_UP(size, 12));
 
 	//Set up thread info
 	struct thread_info ti;
@@ -122,6 +130,7 @@ int execve(const char *name, char * const* argv, char *const *envp) {
 
 	struct fd_set fds;
 	struct response res;
+	fd_zero(&fds);
 	fd_set_set(&fds, cookie);
 	wait_on(&fds, NULL, 0);
 	int ret = get_response(cookie, &res);
