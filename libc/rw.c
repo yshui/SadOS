@@ -135,7 +135,7 @@ int open(const char *path, int flags) {
 	}
 	return handle;
 }
-int opendir(char *path) {
+void *opendir(const char *path) {
 	char *allocated = NULL;
 	if (*path != '/') {
 		int cwd_len = strlen(__cwd);
@@ -147,13 +147,13 @@ int opendir(char *path) {
 	struct fd_set fds;
 	int handle = port_connect(6, 0, NULL);
 	if (handle < 0)
-		return handle;
+		return NULL;
 	fd_zero(&fds);
 	fd_set_set(&fds, handle);
     //printf("open dir: %s\n", path);
 	int ret = wait_on(NULL, &fds, 0);
 	if (ret < 0)
-		return ret;
+		return NULL;
 
 	struct io_req *req = malloc(sizeof(struct io_req)+strlen(path)+1);
 	req->flags = 0;
@@ -166,18 +166,18 @@ int opendir(char *path) {
 		allocated = NULL;
 	}
 	if (cookie < 0)
-		return cookie;
+		return NULL;
 
 	fd_zero(&fds);
 	fd_set_set(&fds, cookie);
 	ret = wait_on(&fds, NULL, 0);
 	if (ret < 0)
-		return ret;
+		return NULL;
 
 	struct response res;
 	ret = get_response(cookie, &res);
 	if (ret < 0)
-		return ret;
+		return NULL;
 
 	struct io_res *x = res.buf;
 	int tmp = x->err;
@@ -187,12 +187,13 @@ int opendir(char *path) {
 
 	if (tmp != 0) {
 		errno = tmp;
-		return -1;
+		return NULL;
 	}
-	return handle;
+	return (void *)(uint64_t)handle;
 }
 
-int readdir(int fd, void *buf) {
+struct dirent *readdir(void *_fd) {
+	int fd = (int)(uint64_t)_fd;
 	struct fd_set fds;
 	fd_zero(&fds);
 	fd_set_set(&fds, fd);
@@ -211,17 +212,23 @@ int readdir(int fd, void *buf) {
 	struct response res;
 	get_response(cookie, &res);
 
-	struct io_res *iores = (struct io_res*)malloc(4096);
-	memcpy(iores, res.buf, sizeof(iores) + sizeof(struct dentry) + 1);
-	//unmap res.buf
+	struct io_res *iores = res.buf;
 	uint64_t base = ALIGN((uint64_t)res.buf, 12);
 	if (iores->err) {
 		errno = iores->err;
 		munmap((void *)base, res.len);
-		return -1;
+		return NULL;
 	}
+	if (iores->len == 0) {
+		munmap((void *)base, res.len);
+		return NULL;
+	}
+	struct dentry *dent = (void *)(iores+1);
+	struct dirent *dres = malloc(sizeof(struct dirent));
+	dres->d_ino = dent->dentry_id;
+	strcpy(dres->d_name, dent->d_iname);
+	//unmap res.buf
     //printf("len: %d\n", iores -> len);
-	memcpy(buf, res.buf+sizeof(struct io_res), sizeof(struct dentry));
 	munmap((void *)base, res.len);
-	return iores -> len;
+	return dres;
 }

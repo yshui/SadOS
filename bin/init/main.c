@@ -72,45 +72,7 @@ void fork_fs(void) {
 	execvm((char *)thdr+512, &argv, &env);
 	for(;;); //Shouldn't be reached
 }
-void ls(const char *pathname)
-{
-    //printf("In ls here: %s\n", pathname);
-    int ret;
-    int fd = opendir((char*)pathname);
-    //struct dentry_reader *p = NULL;
-    struct dentry *de = (struct dentry*) malloc(sizeof(struct dentry));
-    if (fd < 0)
-    {
-        printf("Cannot open directory %s.\n", pathname);
-        return;
-    }
-    do {
-        ret = readdir(fd, (void*)de);
-        //printf("ret : %d\n", ret);
-        if (ret)
-            printf("%s\n", de->d_iname);
-    }
-    while(ret);
-}
 
-void cat(char* pathname)
-{
-    //printf("Real path name for cat: %s\n", cur_dir);
-    int fd = open(pathname, 0);
-    if (fd < 0)
-    {
-        printf("Error: file doesn't exist\n");
-        return;
-    }
-    uint64_t fd_int = (uint64_t) fd;
-    printf("fd: %d\n", fd);
-    char buf[513];
-    int count;
-
-    while ( (count = read(fd_int, buf, 513) ) != 0)
-        printf("%s", buf);
-    printf("\n");
-}
 
 int main() {
 	bootstrap();

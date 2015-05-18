@@ -40,8 +40,10 @@ char *getcwd(char *buf, size_t size)
 
 int chdir(const char *path) {
 	strcpy(__cwd_new, __cwd);
-	if (*path == '/')
+	if (*path == '/') {
 		strncpy(__cwd, path, PATH_MAX);
+		return 0;
+	}
 	char *cwd_end = __cwd_new+strlen(__cwd)-1;
 	if (*cwd_end == '/' && cwd_end != __cwd_new)
 		cwd_end--;

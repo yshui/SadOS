@@ -59,7 +59,7 @@ struct file* tarfs_open(const char* pathname, int flags)
 
     if ( (file_index = get_file_index(pathname) ) == -1)
     {
-        printf("File doesn't exist.\n");
+        printf("File %s doesn't exist.\n", pathname);
         return NULL;
     }
     strcpy(fd -> fname, pathname);

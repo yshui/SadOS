@@ -96,24 +96,24 @@ static inline int builtin_exit(struct pipe_part *p) {
 static inline int builtin_ls(struct pipe_part *p)
 {
     //printf("In ls here: %s\n", pathname);
-    int ret;
     //char *pathname = p -> argv0 -> next -> str;
     char *pathname = getcwd(NULL, 0);
-    int fd = opendir(pathname);
+    printf("Opendir %s\n", pathname);
+    void *fd = opendir(pathname);
     //struct dentry_reader *p = NULL;
-    struct dentry *de = (struct dentry*) malloc(sizeof(struct dentry));
+    struct dirent *de;
     if (fd < 0)
     {
         printf("Cannot open directory %s.\n", pathname);
         return -1;
     }
     do {
-        ret = readdir(fd, (void*)de);
+        de = readdir(fd);
         //printf("ret : %d\n", ret);
-        if (ret)
-            printf("%s\n", de->d_iname);
+        if (de)
+            printf("%s\n", de->d_name);
     }
-    while(ret);
+    while(de);
     return 0;
 }
 
@@ -255,13 +255,13 @@ struct builtin_cmd {
 static int batch_mode = false;
 int main(int argc, char **argv, char **envp) {
     //file writing
-    int fd = open("/tarfs/test/f", 0);
-    int fd1 = open("/sata/f", O_CREAT);
+//    int fd = open("/tarfs/test/f", 0);
+//    int fd1 = open("/sata/f", O_CREAT);
     //printf("fd assigned: %d\n", fd);
-    char buf[513];
+//    char buf[513];
     //copying a file
-    while (read(fd, buf, 512) != 0)
-        write(fd1, buf, 512);
+//    while (read(fd, buf, 512) != 0)
+ //       write(fd1, buf, 512);
 
 	if (argc > 1) {
 		batch_mode = true;

@@ -19,11 +19,11 @@ int main(int argc, const char **argv){
 		printf("Usage: %s <path>\n", argv[0]);
 		return 1;
 	}
-//	void *p = opendir(argv[1]);
-//	struct dirent *de;
-//	do {
-//		de = readdir(p);
-//		if (de)
-//			printf("%s\n", de->d_name);
-//	}while(de);
+	void *fd = opendir(argv[1]);
+	struct dirent *de;
+	do {
+		de = readdir(fd);
+		if (de)
+			printf("%s\n", de->d_name);
+	}while(de);
 }
