@@ -52,6 +52,6 @@ void __real_start(int (*main)(int, char **, char **),
 		*(envp--) = rsp;
 		rsp += strlen(rsp)+1;
 	}
-	environ = envp;
+	environ = envp+1;
 	exit(main(argc, argv, envp));
 }

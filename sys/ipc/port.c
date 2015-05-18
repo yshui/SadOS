@@ -245,6 +245,7 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 			current->state = TASK_RUNNING;
 			break;
 		}
+		current->state = TASK_WAITING;
 		enable_interrupts();
 		printk("No fd available, schedule()\n");
 		schedule();

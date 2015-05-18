@@ -212,8 +212,10 @@ int main(int argc, char **argv, char **envp) {
 			printf("%s", prompt);
 
 		struct cmd *c = parse();
-		if (!c)
+		if (!c) {
+			printf("EOF, quit\n");
 			break;
+		}
 		if (c->npipe == 0)
 			continue;
 

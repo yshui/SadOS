@@ -165,8 +165,10 @@ void task_init(void) {
 }
 
 void wake_up(struct task *t) {
-	t->state = TASK_RUNNABLE;
-	list_add(&runq, &t->tasks);
+	if (t->state == TASK_WAITING) {
+		t->state = TASK_RUNNABLE;
+		list_add(&runq, &t->tasks);
+	}
 }
 
 static int available_task_slot(void) {
