@@ -1,40 +1,55 @@
-Team Member:
-109955038 Yuxuan Shui
+# Team Member
 
-Displayed keys includes:
+* 109955038 Yuxuan Shui
+* 109797586 Haochen Chen
 
-* All printable characters
-* F1~F10
-* Backspace(^H), Enter(^M), Tab(^I), ESC(^[)
+# Overview
 
-Recognized special keys includes:
+This is an 80 points project.
 
-* Left/Right Ctrl
-* Left/Right Shift
-* Caps Lock
+Our work might be a little bit unusual because our kernel follows a micro-kernel design. Unlike what was taught in the course, our kernel only does the basic process isolation, address space management and IPC, (almost) everything else is in user space. Including the console and the filesystem (so make sure they are there when you do the test).
 
-============================================================================
-The provided Makefile:
-  1) builds a kernel
-  2) copies it into rootfs/boot/kernel/kernel
-  3) creates an ISO CD image with the rootfs/ contents
+Although due to time constraint, lack of experience in micro-kernel design and various other reasons, the result is extremly buggy and feature incomplete. At least we learned a lot, and had fun (at the expense of sleep) in the process.
 
-To boot the system in QEMU, run:
-  qemu-system-x86_64 -curses -cdrom $USER.iso -drive id=disk,file=$USER.img,if=none -device ahci,id=ahci -device ide-drive,drive=disk,bus=ahci.0 -net nic -net user,hostfwd=tcp::10080-:80 -net user,hostfwd=tcp::10023-:23 --no-reboot -gdb tcp::9998
+# Filesystem structure
 
-  Explanation of parameters:
-  -curses         use a text console (omit this to use default SDL/VNC console)
-  -cdrom x.iso    connect a CD-ROM and insert CD with x.iso disk
-  --no-reboot     exit when guest reboots
-  -gdb tcp::9998  listen for "remote" debugging connections on port 9998
+The root directory contains 2 subdirectories, /tarfs for the tarfs, /sata for filesystem on the hard drive. /tarfs is readonly, and /sata is (in theory) read/write.
 
-  connect a hard drive with x.img disk:
-  -drive id=disk,file=$USER.img,if=none -device ahci,id=ahci -device ide-drive,drive=disk,bus=ahci.0
-  connect a NIC and forward local port 10080 into port 80 and local port 10023 to port 23
-  -net nic -net user,hostfwd=tcp::10080-:80 -net user,hostfwd=tcp::10023-:23
+In case you are not able to run your shell for testing (highly likely), at least you can try the 'cd', 'ls', 'touch' and 'cat' builtin commands in our shell to see the filesystem in motion.
 
-When using the -curses mode, switch to the qemu> console with ESC-2.
+# Syscalls
 
-To connect a remote debugger to the running qemu VM:
-  gdb ./kernel
-  target remote localhost:9998
+## _syscalls_ implemented in libc
+
+Those _syscalls_ are implemented in libc as user space functions:
+
+* read, write, open, readdir, writedir, opendir, lseek
+* fork, execve (Yep, loading ELF is done in user space)
+* chdir, getcwd (We cheated a little here)
+
+## Actual syscalls
+
+These are some of the most important syscalls that are actually implemented in the kernel, with brief explainations:
+
+* get_thread_info: Get the thread info (mainly registers) of current running thread.
+* asnew: Create a new sub address space. Can create a COW snapshot of current address space.
+* sendpage: Used to transfer memory range between address spaces.
+* munmap: Unmap a memory range.
+* create_task: Create a new task, take an address space and thread info.
+* wait_on, wait_on_port: Wait on file descriptors or a port.
+* connect_port, open_port, request, respond, get_response: Used for IPC between processes. This API is TCP-like and stateful. The kernel will try to avoid memory copy as much as possible. I admit this API is not well designed, but in my defense, this is my first try.
+
+## What is not implemented
+
+* pipe: We had some code for a pipe server in user space, but sadly we don't have time to finish it.
+* sleep: The wait_on syscall takes an argument for timeout, but we are short of time to actually implement that.
+* brk: Memory is allocated via sendpage syscall.
+* waitpid
+
+# Other notes
+
+This kernel generates a lot of logs through serial port. So don't (or do, if you are interested) start qemu with serial port.
+
+# Conclusion
+
+This little kernel is extremly fragile, so please test with care and love. Thanks!.

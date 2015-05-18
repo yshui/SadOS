@@ -1,3 +1,6 @@
+/* Original code from OSDev, which is in Public Domain */
+/* Copyright (C) 2015, Haochen Chen */
+
 #include <stdio.h>
 //#include <sys/printk.h>
 #include <sys/defs.h>
