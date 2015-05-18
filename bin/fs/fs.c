@@ -24,7 +24,7 @@
 
 struct file temp_fd;
 struct super_block cur_super_block;
-struct dentry cur_dentry;
+//struct dentry cur_dentry;
 //struct dentry_reader cur_dentry_reader;
 HBA_MEM* abar;
 char fs[FS_SIZE];
@@ -43,17 +43,17 @@ char *get_block(int index)
 void read_inode_bitmap(char *inode_bitmap)
 {
     read_sata(pdtable[0], INODE_BITMAP_START_INDEX, 0, 1, common_buf);
-    strncpy(inode_bitmap, common_buf, BLOCK_SIZE);
+    memcpy(inode_bitmap, common_buf, BLOCK_SIZE);
 }
 void read_data_bitmap(char *data_bitmap)
 {
     read_sata(pdtable[0], DATA_BITMAP_START_INDEX, 0, 1, common_buf);
-    strncpy(data_bitmap, common_buf, BLOCK_SIZE);
+    memcpy(data_bitmap, common_buf, BLOCK_SIZE);
 }
 void read_dentry_bitmap(char *dentry_bitmap)
 {
     read_sata(pdtable[0], DENTRY_BITMAP_START_INDEX, 0, 1, common_buf);
-    strncpy(dentry_bitmap, common_buf, BLOCK_SIZE);
+    memcpy(dentry_bitmap, common_buf, BLOCK_SIZE);
 }
 
 uint64_t get_free_inode(void)
@@ -92,21 +92,21 @@ void set_inode_bitmap(int inode_id)
 {
     read_inode_bitmap(inode_bitmap);
     inode_bitmap[inode_id] = 1;
-    strncpy(common_buf, inode_bitmap, BLOCK_SIZE);
+    memcpy(common_buf, inode_bitmap, BLOCK_SIZE);
     write_sata(pdtable[0], INODE_BITMAP_START_INDEX, 0, 1, common_buf);
 }
 void set_data_bitmap(int data_id)
 {
     read_data_bitmap(data_bitmap);
     data_bitmap[data_id] = 1;
-    strncpy(common_buf, data_bitmap, BLOCK_SIZE);
+    memcpy(common_buf, data_bitmap, BLOCK_SIZE);
     write_sata(pdtable[0], DATA_BITMAP_START_INDEX, 0, 1, common_buf);
 }
 void set_dentry_bitmap(int dentry_id)
 {
     read_dentry_bitmap(dentry_bitmap);
     dentry_bitmap[dentry_id] = 1;
-    strncpy(common_buf, dentry_bitmap, BLOCK_SIZE);
+    memcpy(common_buf, dentry_bitmap, BLOCK_SIZE);
     write_sata(pdtable[0], DENTRY_BITMAP_START_INDEX, 0, 1, common_buf);
 }
 
@@ -131,13 +131,23 @@ void build_inode(int inode_id, uint16_t flags)
     write_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
 }
 
+void write_dentry(int inode_index, struct dentry* dentry_block)
+{
+    int dentry_block_id = inode_index / 2, dentry_block_offset = inode_index % 2;
+    char *dentry_block_ptr = (char *)dentry_block;
+    read_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+    struct dentry* common_buf_ptr = (struct dentry*)common_buf;
+    common_buf_ptr += dentry_block_offset;
+    memcpy((char *)common_buf_ptr, dentry_block_ptr, sizeof(struct dentry) );
+    write_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+}
 void build_dentry(uint64_t inode_id, uint64_t dentry_id, uint64_t d_parent, const char* d_iname)
 {
     //set bitmap
     set_dentry_bitmap(dentry_id);
     int dentry_block_id = dentry_id / 2, dentry_block_offset = dentry_id % 2;
     read_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
-    struct dentry *new_dentry = (struct dentry*) (common_buf);
+    struct dentry *new_dentry = (struct dentry*) malloc(sizeof(struct dentry));
     new_dentry += dentry_block_offset;
     new_dentry -> d_parent = (struct dentry*) d_parent;
     int i;
@@ -150,20 +160,10 @@ void build_dentry(uint64_t inode_id, uint64_t dentry_id, uint64_t d_parent, cons
     //printk("dentry id: %d\n", dentry_id);
     //printk("inode id: %d\n", inode_id);
     //printk("common buf for dentry1: %s\n", new_dentry -> d_iname);
-    //printk("common buf for dentry2: %s\n", new_dentry -> d_iname);
+    //printf("common buf for dentry2: %s\n", new_dentry -> d_iname);
 
-    write_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
-}
-
-void write_dentry(int inode_index, struct dentry* dentry_block)
-{
-    int dentry_block_id = inode_index / 2, dentry_block_offset = inode_index % 2;
-    char *dentry_block_ptr = (char *)dentry_block;
-    read_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
-    struct dentry* common_buf_ptr = (struct dentry*)common_buf;
-    common_buf_ptr += dentry_block_offset;
-    strncpy((char *)common_buf_ptr, dentry_block_ptr, sizeof(struct dentry) );
-    write_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
+    write_dentry(dentry_id, new_dentry);
+    //write_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, (char*) new_dentry);
 }
 void get_dentry(int inode_index, struct dentry* dentry_block)
 {
@@ -172,7 +172,7 @@ void get_dentry(int inode_index, struct dentry* dentry_block)
     read_sata(pdtable[0], DENTRY_START_INDEX + dentry_block_id, 0, 1, common_buf);
     struct dentry* common_buf_ptr = (struct dentry*)common_buf;
     common_buf_ptr += dentry_block_offset;
-    strncpy(dentry_block_ptr, (char *)common_buf_ptr, sizeof(struct dentry) );
+    memcpy(dentry_block_ptr, (char *)common_buf_ptr, sizeof(struct dentry) );
 }
 
 void write_inode(int inode_index, struct inode* inode_block)
@@ -181,7 +181,7 @@ void write_inode(int inode_index, struct inode* inode_block)
     read_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
     struct inode* common_buf_ptr = (struct inode*) common_buf;
     common_buf_ptr += inode_block_offset;
-    strncpy( (char *)common_buf_ptr, (char *)inode_block, sizeof(struct inode) );
+    memcpy( (char *)common_buf_ptr, (char *)inode_block, sizeof(struct inode) );
     write_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
 }
 
@@ -191,19 +191,19 @@ void get_inode(int inode_index, struct inode* inode_block)
     read_sata(pdtable[0], INODE_START_INDEX + inode_block_id, 0, 1, common_buf);
     struct inode* common_buf_ptr = (struct inode*) common_buf;
     common_buf_ptr += inode_block_offset;
-    strncpy((char *)inode_block, (char *)common_buf_ptr, sizeof(struct inode) );
+    memcpy((char *)inode_block, (char *)common_buf_ptr, sizeof(struct inode) );
 }
 
 void get_data(uint64_t data_index, char *data_block, int offset, int count)
 {
     read_sata(pdtable[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
     //printk("Reading common buf: %s %d\n", common_buf, offset);
-    strncpy(data_block, common_buf + offset, count);
+    memcpy(data_block, common_buf + offset, count);
 }
 void write_data(int data_index, char *data, int offset, int count)
 {
     read_sata(pdtable[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
-    strncpy(common_buf + offset, data, count);
+    memcpy(common_buf + offset, data, count);
     //printk("Writing common buf: %s %d\n", common_buf + offset, offset);
     write_sata(pdtable[0], DATA_START_INDEX + data_index, 0, 1, common_buf);
 }
@@ -225,19 +225,21 @@ int sata_get_parent(const char *cur_dentry_name)
             }
             break;
         }
-    //printk("Parent dir: %s\n", parent_dir);
+    //printf("Parent dir: %s\n", parent_dir);
 
     read_inode_bitmap(inode_bitmap);
+    struct dentry* cur_dentry = (struct dentry*) malloc(sizeof(struct dentry));
     for (i = 0;i < BLOCK_SIZE;++i)
     {
         if (inode_bitmap[i] == 0)
             continue;
-        get_dentry(i, &cur_dentry);
-        //printk("?????cur dentry: %s %d\n", cur_dentry.d_iname, cur_dentry.dentry_id);
-        if (!strcmp(cur_dentry.d_iname, parent_dir) )
+        get_dentry(i, cur_dentry);
+        //printf("dentry id: %d\n", i);
+        //printf("?????cur dentry: %s\n", cur_dentry ->d_iname);
+        if (!strcmp(cur_dentry ->d_iname, parent_dir) )
         {
             //printk("parent dentry id: %d %s %s\n", cur_dentry.dentry_id, cur_dentry.d_iname, parent_dir);
-            return cur_dentry.dentry_id;
+            return cur_dentry ->dentry_id;
         }
     }
     return -1;
@@ -302,7 +304,7 @@ struct file* sata_open(const char* pathname, int flags)
                 break;
             }
         write_dentry(parent_dentry_id, parent_dentry);
-        printf("Create inode successfully.\n");
+        //printf("Create inode successfully.\n");
         return fd;
     }
     //file does not exist
@@ -432,6 +434,7 @@ struct dentry* read_root_dir(struct dentry_reader* reader)
     else if (reader -> offset == 1)
         strcpy(cur_dentry -> d_iname, "/sata");
     reader -> offset++;
+    printf("reader offset: %d\n", reader -> offset);
     return cur_dentry;
 }
 

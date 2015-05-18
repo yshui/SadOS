@@ -55,8 +55,8 @@ struct dirent
 	unsigned short d_reclen;
 	char d_name [NAME_MAX+1];
 };
-void *opendir(const char *name);
-struct dirent *readdir(void *dir);
+int opendir(char *name);
+int readdir(int fd, void *buf);
 int closedir(void *dir);
 
 char *getenv(const char *);
