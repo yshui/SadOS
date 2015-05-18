@@ -78,9 +78,15 @@ int open(const char *path, int flags) {
 		int cwd_len = strlen(__cwd);
 		allocated = malloc(cwd_len+strlen(path)+1);
 		strcpy(allocated, __cwd);
+        if (__cwd[strlen(__cwd) - 1] != '/')
+        {
+            strcat(allocated, "/");
+            cwd_len++;
+        }
 		strcpy(allocated+cwd_len, path);
 		path = allocated;
 	}
+    //printf("path: %s\n", path);
 	struct fd_set fds;
 	int handle = port_connect(6, 0, NULL);
 	if (handle < 0)
@@ -200,7 +206,7 @@ int readdir(int fd, void *buf) {
 	fd_zero(&fds);
 	fd_set_set(&fds, cookie);
 	wait_on(&fds, NULL, 0);
-    printf("here\n");
+    //printf("here\n");
 
 	struct response res;
 	get_response(cookie, &res);
@@ -214,7 +220,7 @@ int readdir(int fd, void *buf) {
 		munmap((void *)base, res.len);
 		return -1;
 	}
-    printf("len: %d\n", iores -> len);
+    //printf("len: %d\n", iores -> len);
 	memcpy(buf, res.buf+sizeof(struct io_res), sizeof(struct dentry));
 	munmap((void *)base, res.len);
 	return iores -> len;

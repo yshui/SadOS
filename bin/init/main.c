@@ -139,18 +139,18 @@ int main() {
 	if (pid2 == 0)
 		fork_fs();
 	wait_on_port(6);
-    int fd = open("/tarfs/test/f", 0);
-    int fd1 = open("/sata/f", O_CREAT);
-    //printf("fd assigned: %d\n", fd);
-    char buf[513];
-    while (read(fd, buf, 512) != 0)
-    {
-        //printf("%s\n", buf);
-        write(fd1, buf, 512);
-    }
-    ls("/sata");
-    cat("/sata/f");
-
+//    int fd = open("/tarfs/test/f", 0);
+//    int fd1 = open("/sata/f", O_CREAT);
+//    printf("fd assigned: %d\n", fd);
+//    char buf[513];
+//    while (read(fd, buf, 512) != 0)
+//    {
+//        //printf("%s\n", buf);
+//        write(fd1, buf, 512);
+//    }
+//    ls("/sata");
+//    cat("/sata/f");
+//
 	if (fork() == 0)
 		execve("/tarfs/bin/sbush", NULL, NULL);
 	wait_on(NULL, NULL, 0);
