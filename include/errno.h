@@ -30,4 +30,5 @@
 #define   EMFILE       24
 #define   EPIPE        32
 #define   ERANGE       34
+#define   ENAMETOOLONG 36
 #define   EADDRINUSE   67

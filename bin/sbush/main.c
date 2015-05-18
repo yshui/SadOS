@@ -23,6 +23,9 @@ int env_size, nenv;
 
 #include "util.h"
 #include "parse.h"
+int pipe(int *p) {
+	return -1;
+}
 
 const char *prompt = NULL;
 static inline int builtin_export(struct pipe_part *p) {

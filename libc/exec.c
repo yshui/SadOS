@@ -20,6 +20,8 @@
 #include <thread.h>
 #include <elf/elf.h>
 #include <bitops.h>
+#include <uapi/ioreq.h>
+#include <ipc.h>
 #include "util.h"
 
 extern char __cwd[];
@@ -103,6 +105,36 @@ int execvm(const char *base, char * const* argv, char * const *environ) {
 	ti.rcx = ei->hdr->e_entry;
 
 	return create_task(as, &ti, CT_SELF);
+}
+
+int execve(const char *name, char * const* argv, char *const *envp) {
+	int fd = open(name, O_RDONLY);
+	if (fd < 0)
+		return fd;
+
+	struct io_req req;
+	req.type = IO_READ;
+	req.len = 16*4096*1024; //64M should be big enough
+
+	int cookie = request(fd, sizeof(req), &req);
+	if (cookie < 0)
+		return cookie;
+
+	struct fd_set fds;
+	struct response res;
+	fd_set_set(&fds, cookie);
+	wait_on(&fds, NULL, 0);
+	int ret = get_response(cookie, &res);
+	if (ret < 0)
+		return ret;
+
+	struct io_res *x = res.buf;
+	if (x->err) {
+		 errno = x->err;
+		 munmap((void *)ALIGN((uint64_t)x, 12), res.len);
+		 return -1;
+	}
+	return execvm((void *)(x+1), argv, envp);
 }
 
 int execvp(const char *name, char * const* argv) {

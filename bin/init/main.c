@@ -97,15 +97,9 @@ int main() {
 	if (pid2 == 0)
 		fork_fs();
 	wait_on_port(6);
-	int fd = open("/tarfs/bin/init", O_RDONLY);
-	printf("Open %d\n", fd);
-	char *buf = malloc(1024);
-	read(fd, buf, 4);
-	buf[4] = 0;
-	printf("%s\n", buf+1);
-	while(1) {
-		read(0, buf, 1024);
-		printf("%s\n", buf);
-	}
+
+	if (fork() == 0)
+		execve("/tarfs/bin/sbush", NULL, NULL);
+	wait_on(NULL, NULL, 0);
 	return 0;
 }

@@ -26,16 +26,10 @@ __noreturn void exit(int status) {
 sys1(get_physical, uint64_t, long)
 sys0(getpid, pid_t)
 sys0(getppid, pid_t)
-sys3(execve, const char *, char *const *, char *const *, int)
 sys4(wait4, pid_t, int *, int, void *, pid_t)
 sys1(close, int, int)
 sys3(lseek, int, off_t, int, off_t)
-sys1(pipe, int *, int)
 sys2(dup0, int, int, int)
-sys1(chdir, const char *, int)
-sys1(alarm, unsigned int, unsigned int)
-sys2(nanosleep, const struct timespec *, struct timespec *, int)
-sys3(getdents, unsigned int, struct linux_dirent *, unsigned int, int)
 #if 0
 static __inline uint64_t
 syscall_6(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,

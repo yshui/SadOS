@@ -19,6 +19,7 @@
 #include <string.h>
 
 char __cwd[PATH_MAX];
+char __cwd_new[PATH_MAX];
 
 char *getcwd(char *buf, size_t size)
 {
@@ -35,4 +36,52 @@ char *getcwd(char *buf, size_t size)
 	}
 	strcpy(buf, __cwd);
 	return buf;
+}
+
+int chdir(const char *path) {
+	strcpy(__cwd_new, __cwd);
+	if (*path == '/')
+		strncpy(__cwd, path, PATH_MAX);
+	char *cwd_end = __cwd_new+strlen(__cwd)-1;
+	if (*cwd_end == '/' && cwd_end != __cwd_new)
+		cwd_end--;
+	while(*path) {
+		if (path[0] == '.' && path[1] == '.' &&
+		    (path[2] == '/' || path[2] == '\0')) {
+			if (cwd_end == __cwd_new) {
+				errno = ENOENT;
+				return -1;
+			}
+			while(cwd_end >= __cwd_new && *cwd_end != '/')
+				cwd_end--;
+			if (cwd_end != __cwd_new)
+				*(cwd_end--) = '\0';
+			else
+				*(cwd_end+1) = '\0';
+			if (path[2])
+				path += 3;
+			else
+				break;
+		} else {
+			const char *next_path = path;
+			while(*next_path && *next_path != '/')
+				next_path++;
+			if (cwd_end+(next_path-path)+1 > __cwd_new+PATH_MAX) {
+				errno = ENAMETOOLONG;
+				return -1;
+			}
+			if (cwd_end != __cwd_new)
+				*(++cwd_end) = '/';
+			cwd_end++;
+			strncpy(cwd_end, path, next_path-path);
+			cwd_end += next_path-path;
+			*(cwd_end--) = '\0';
+			if (*next_path)
+				path = next_path+1;
+			else
+				break;
+		}
+	}
+	strcpy(__cwd, __cwd_new);
+	return 0;
 }

@@ -35,6 +35,9 @@ void *opendir(const char *path) {
 	ret->off = ret->end = NULL;
 	return ret;
 }
+int getdents(int fd, const void *b, size_t c) {
+	return 0;
+}
 
 struct dirent *readdir(void *_p) {
 	struct dirp *p = _p;

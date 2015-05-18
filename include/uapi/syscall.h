@@ -19,20 +19,13 @@
 #define NR_dup0            16
 #define NR_get_physical    17
 #define NR_getpid          18
+#define NR_getppid         19
 
 //Deprecated
-#define NR_open        2
 #define NR_lseek       8
-//#define NR_mmap        9
-//#define NR_mprotect   10
-//#define NR_munmap     11
-#define NR_brk        12
 #define NR_pipe       22
 #define NR_nanosleep  35
 #define NR_alarm      37
 #define NR_execve     59
 #define NR_wait4      61
 #define NR_getdents   78
-#define NR_getcwd     79
-#define NR_chdir      80
-#define NR_getppid   110
