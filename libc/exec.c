@@ -148,6 +148,7 @@ int execve(const char *name, char * const* argv, char *const *envp) {
 
 int execvp(const char *name, char * const* argv) {
 	char *env_path = strdup(getenv("PATH"));
+	printf("%s\n", env_path);
 	int npath, paths = 0;
 	char **path = NULL;
 	int flen = strlen(argv[0]);
@@ -162,9 +163,7 @@ int execvp(const char *name, char * const* argv) {
 		buf[plen] = '/';
 		buf[plen+1] = '\0';
 		strcat(buf, argv[0]);
-#ifdef __LIBC_DEBUG
 		printf("Trying: %s\n", buf);
-#endif
 
 		execve(buf, argv, environ);
 		if (errno != ENOENT || tmp_errno == 0)

@@ -71,6 +71,7 @@ void fork_fs(void) {
 int main() {
 	bootstrap();
 	X='b';
+	putenv("PATH=/tarfs/bin");
 	struct thread_info ti;
 	get_thread_info(&ti);
 
@@ -99,7 +100,7 @@ int main() {
 	wait_on_port(6);
 
 	if (fork() == 0)
-		execve("/tarfs/bin/sbush", NULL, NULL);
+		execve("/tarfs/bin/sbush", NULL, environ);
 	wait_on(NULL, NULL, 0);
 	return 0;
 }
