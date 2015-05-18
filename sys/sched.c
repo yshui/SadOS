@@ -119,7 +119,7 @@ void int_reschedule(uint8_t *sp) {
 struct task *new_task(void) {
 	return obj_pool_alloc(task_pool);
 }
-extern char ret_new_process;
+extern char ret_new_process, new_task_return;
 struct task *new_process(struct address_space *as, struct thread_info *ti) {
 	struct task *new_task = obj_pool_alloc(task_pool);
 	void *stack_page = get_page();
@@ -144,7 +144,7 @@ struct task *new_process(struct address_space *as, struct thread_info *ti) {
 	memcpy(x-sizeof(*ti), ti, sizeof(*ti));
 
 	uint64_t *sb = (void *)(x-sizeof(*ti));
-	*(--sb) = (uint64_t)&syscall_return; //The schedule() return address
+	*(--sb) = (uint64_t)&new_task_return; //The schedule() return address
 	*(--sb) = (uint64_t)&after_switch;
 
 	//Move up 6 move qword, for the registers saved by switch_to

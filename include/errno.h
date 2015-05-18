@@ -32,3 +32,4 @@
 #define   ERANGE       34
 #define   ENAMETOOLONG 36
 #define   EADDRINUSE   67
+#define   EFORKED      99

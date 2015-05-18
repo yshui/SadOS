@@ -37,7 +37,7 @@ static inline uint16_t i8254_read(void) {
 uint64_t pit_handler(int v) {
 	static volatile uint32_t count = 0;
 	count++;
-	return 1;
+	return 0;
 }
 extern void pit_wrapper(void);
 void timer_init(void) {

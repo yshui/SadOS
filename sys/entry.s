@@ -84,7 +84,7 @@ vector = 32
     vector = vector + 1
 .endr
 
-.global syscall_entry, syscall_return
+.global syscall_entry, syscall_return, new_task_return
 .global syscall_table
 .global interrupt_disabled
 
@@ -109,6 +109,16 @@ syscall_return:
 	movq current, %r10
 	movq $0, 16(%r10) #current->ti = NULL
 	pop_all_register 0
+	popq %rsp         #switch back to user stack
+	sysretq
+
+new_task_return:
+	movl interrupt_disabled, %r10d
+	testl %r10d, %r10d
+	jnz ret_panic
+	movq current, %r10
+	movq $0, 16(%r10) #current->ti = NULL
+	pop_all_register 1
 	popq %rsp         #switch back to user stack
 	sysretq
 

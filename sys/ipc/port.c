@@ -285,7 +285,7 @@ SYSCALL(3, wait_on, void *, rbuf, void *, wbuf, int, timeout) {
 SYSCALL(2, dup0, int, old_fd, int, new_fd) {
 	if (old_fd < 0 || old_fd >= current->fds->max_fds || !current->fds->file[old_fd])
 		return -EBADF;
-	if (new_fd >= current->fds->max_fds)
+	if (new_fd >= 0 && new_fd >= current->fds->max_fds)
 		return -EBADF;
 	if (new_fd >= 0 && current->fds->file[new_fd])
 		return -EBUSY;
