@@ -87,9 +87,9 @@ int open(const char *path, int flags) {
 		return handle;
 	fd_zero(&fds);
 	fd_set_set(&fds, handle);
-    printf("open path: %s\n", path);
+    //printf("open path: %s\n", path);
 	int ret = wait_on(NULL, &fds, 0);
-    printf("ret: %s\n", ret);
+    //printf("ret: %s\n", ret);
 	if (ret < 0)
 		return ret;
 
@@ -194,18 +194,19 @@ int readdir(int fd, void *buf) {
 
 	struct io_req ioreq;
 	ioreq.type = IO_READDIR;
-	ioreq.len = 1;
+	//ioreq.len = 1;
 
 	int cookie = request(fd, sizeof(ioreq), &ioreq);
 	fd_zero(&fds);
 	fd_set_set(&fds, cookie);
 	wait_on(&fds, NULL, 0);
+    printf("here\n");
 
 	struct response res;
 	get_response(cookie, &res);
 
 	struct io_res *iores = (struct io_res*)malloc(4096);
-	memcpy(iores, res.buf, sizeof(iores) + sizeof(struct dentry));
+	memcpy(iores, res.buf, sizeof(iores) + sizeof(struct dentry) + 1);
 	//unmap res.buf
 	uint64_t base = ALIGN((uint64_t)res.buf, 12);
 	if (iores->err) {
@@ -213,6 +214,7 @@ int readdir(int fd, void *buf) {
 		munmap((void *)base, res.len);
 		return -1;
 	}
+    printf("len: %d\n", iores -> len);
 	memcpy(buf, res.buf+sizeof(struct io_res), sizeof(struct dentry));
 	munmap((void *)base, res.len);
 	return iores -> len;

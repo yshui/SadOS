@@ -426,6 +426,7 @@ struct dentry_reader* open_root_dir(char *path)
 }
 struct dentry* read_root_dir(struct dentry_reader* reader)
 {
+    //printf("!!!!%d\n", reader -> offset);
     struct dentry* cur_dentry = malloc(sizeof(struct dentry));
     if (reader -> offset == 2)
         return NULL;
@@ -434,7 +435,6 @@ struct dentry* read_root_dir(struct dentry_reader* reader)
     else if (reader -> offset == 1)
         strcpy(cur_dentry -> d_iname, "/sata");
     reader -> offset++;
-    printf("reader offset: %d\n", reader -> offset);
     return cur_dentry;
 }
 
@@ -465,8 +465,10 @@ struct dentry* read_sata_dir(struct dentry_reader *reader)
 {
     struct dentry* cur_dentry = (struct dentry*) malloc(sizeof(struct dentry) );
     get_dentry((uint64_t)reader -> dentry, cur_dentry);
+    //printf("next: %x\n", cur_dentry -> d_subdirs[reader -> offset]);
     if (cur_dentry -> d_subdirs[reader -> offset] == 0)
         return NULL;
+    //printf("read sata dir.\n");
     get_dentry((uint64_t)cur_dentry -> d_subdirs[reader -> offset], cur_dentry);
     ++reader -> offset;
     return cur_dentry;
