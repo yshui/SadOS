@@ -176,7 +176,6 @@ struct file* my_open(char *pathname, int flags)
     parse_path(pathname);
     //printk("file name after parsing: %s\n", pathname);
     struct file* fd;
-    //printk("fs type: %d\n", fs_type);
 
     if (fs_type == 0)
         fd = tarfs_open(pathname, flags);
@@ -306,7 +305,6 @@ void close_handle (struct fd_list *fdi) {
 int portio_fd;
 int main()
 {
-    printf("In file system.\n");
     portio_fd = port_connect(4, 0, NULL);
     init_fs();
     tarfs_init();
@@ -314,8 +312,12 @@ int main()
     struct fd_set fds;
     fds.nfds = 0;
     handle_to_fd = (uint64_t*) malloc(4096);
+    memset(handle_to_fd, 0, 4096);
+    uint64_t* handle_to_reader = (uint64_t*) malloc(4096);
+    memset(handle_to_reader, 0, 4096);
     struct urequest ureq;
     list_head_init(&all_fds);
+    //printf("In file system.\n");
     while (1)
     {
         fd_zero(&fds);
@@ -351,6 +353,7 @@ int main()
 			}
                         char *pathname = (char*) (x + 1);
                         struct file* cur_fd = my_open(pathname, x->flags);
+                        //printf("cur fd: %d\n", cur_fd);
                         if (cur_fd == NULL) {
 			    res.err = ENOENT;
 			    respond(cookie, sizeof(res), &res);
@@ -358,7 +361,7 @@ int main()
 			} else {
 			    res.err = 0;
 			    respond(cookie, sizeof(res), &res);
-                            handle_to_fd[handle] = (uint64_t)cur_fd;
+                handle_to_fd[handle] = (uint64_t)cur_fd;
 			}
                     }
                     else if (x -> type == IO_OPENDIR)
@@ -372,6 +375,7 @@ int main()
 				continue;
 			}
                         struct dentry_reader* cur_fd = my_opendir(pathname);
+                        //printf("opening path: %s\n", pathname);
                         if (cur_fd != NULL) {
 			    res.err = 0;
 			    respond(cookie, sizeof(res), &res);
@@ -384,6 +388,7 @@ int main()
                     }
                     if (x -> type == IO_READ)
                     {
+                        //printf("Reading file.\n");
                         uint64_t fd_int = handle_to_fd[handle];
                         struct io_res *rs = malloc(sizeof(struct io_res) + x->len + 1);
                         ssize_t ret = my_read(fd_int, rs+1, x->len);
@@ -399,6 +404,7 @@ int main()
                     }
                     else if (x -> type == IO_WRITE)
                     {
+                        //printf("Writing file!\n");
                         uint64_t fd_int = handle_to_fd[handle];
                         void *buf = (void*) (x + 1);
                         ssize_t ret = my_write(fd_int, buf, x->len);
@@ -413,14 +419,20 @@ int main()
                         respond(cookie, sizeof(struct io_res), &rs);
                     }
                     else if (x -> type == IO_READDIR)
-                    {
-                        struct dentry_reader* dentry_reader = (struct dentry_reader*) (x + 1);
+                    { 
+                        uint64_t fd = handle_to_fd[handle];
+                        struct dentry_reader* dentry_reader = (struct dentry_reader*) fd;
                         struct dentry* ret = my_readdir(dentry_reader);
+                        //printf("read dir: %s\n", ret -> d_iname);
 
                         struct io_res *rs = malloc(sizeof(struct io_res) + sizeof(dentry_reader) + 1);
-                        rs -> len = sizeof(struct dentry);
+                        if (ret != NULL)
+                            rs -> len = sizeof(struct dentry);
+                        else
+                            rs -> len = 0;
                         rs -> err = 0;
-                        strnncpy((char *)(rs + 1), (char*)ret, sizeof(ret));
+                        //printf("rs len: %d\n", rs->len);
+                        memcpy((char *)(rs + 1), (char*)ret, sizeof(struct dentry));
                         respond(cookie, sizeof(struct io_res) + sizeof(struct dentry) + 1, rs);
                     }
                     else if (x -> type == IO_LSEEK)
