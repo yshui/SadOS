@@ -51,7 +51,7 @@ uint64_t page_fault_handler(uint64_t err) {
 }
 void page_fault_init(void) {
 	//Register page_fault_handle, 0xe=page fault, 0xf=trap gate
-	register_handler(0xe, &page_fault_entry, 0xf, 1);
+	register_handler(0xe, &page_fault_entry, 0xe, 1);
 
 	zero_page = manage_phys_page(get_phys_page());
 	memset((void *)(zero_page->phys_addr+KERN_VMBASE), 0, PAGE_SIZE);

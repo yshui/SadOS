@@ -173,7 +173,7 @@ void services_init(void) {
 		i++;
 	}
 }
-extern char gp_entry;
+extern char gp_entry, ud_entry, de_entry;
 __noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	struct smap_t *smap;
 	int i, smap_len;
@@ -187,7 +187,9 @@ __noreturn void start(uint32_t* modulep, void* physbase, void* physfree) {
 	syscalls_init();
 	idt_init();
 
-	register_handler(0xd, &gp_entry, 0xf, 1);
+	register_handler(0xd, &gp_entry, 0xe, 1);
+	register_handler(0x6, &ud_entry, 0xe, 1);
+	register_handler(0x0, &de_entry, 0xe, 1);
 
 	while(modulep[0] != 0x9001)
 		modulep += modulep[1]+2;

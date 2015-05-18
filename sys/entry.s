@@ -132,13 +132,37 @@ ret_panic:
 	hlt
 
 interrupt_entry int_entry_common, int_handler, 1
-interrupt_entry page_fault_entry, page_fault_handler, 1
 interrupt_entry gp_entry2, gp_handler, 1
+interrupt_entry ud_entry2, ud_handler, 1
+interrupt_entry de_entry2, de_handler, 1
+
+.global page_fault_entry
+page_fault_entry:
+	push_all_register 1
+	movl $1, interrupt_disabled
+	call page_fault_handler
+	movl $0, interrupt_disabled
+	#a return value of 1 indicate
+	#schedule is needed
+	bt $0, %rax
+	jnc normal_intret
+	movq %rsp, %rdi
+	call int_reschedule
+	pop_all_register 1
+	iretq
 
 .global gp_entry
 gp_entry:
 	pushq %rsp
 	jmp gp_entry2
+.global ud_entry
+ud_entry:
+	pushq %rsp
+	jmp ud_entry2
+.global de_entry
+de_entry:
+	pushq %rsp
+	jmp de_entry2
 
 .global switch_to
 .global current

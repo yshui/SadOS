@@ -59,6 +59,15 @@ static inline int builtin_cd(struct pipe_part *p) {
 	return chdir(p->argv0->next->str);
 }
 
+static inline int builtin_touch(struct pipe_part *p) {
+	if (p->argc != 2) {
+		printf("%s: invalid arguments\n", p->argv0->str);
+		return 1;
+	}
+	return open(p->argv0->next->str, O_CREAT);
+}
+
+
 static inline int builtin_pwd(struct pipe_part *p) {
 	char *pwd = getcwd(NULL, 0);
 	if (pwd)
@@ -85,6 +94,8 @@ static inline int builtin_exit(struct pipe_part *p) {
 }
 
 static inline int builtin_help(struct pipe_part *p) {
+	printf("touch file: touch\n");
+	printf("echo args ...: echo arguments\n");
 	printf("export name=value: Change environment variable name to value\n");
 	printf("export: List all environment variables\n");
 	printf("cd path: Change working directory\n");
@@ -182,6 +193,7 @@ struct builtin_cmd {
 	const char *name;
 	int (*handler)(struct pipe_part *p);
 } cmd_hanlder[] = {
+	{ .name = "touch", .handler = builtin_touch },
 	{ .name = "export", .handler = builtin_export },
 	{ .name = "cd", .handler = builtin_cd },
 	{ .name = "pwd", .handler = builtin_pwd },
