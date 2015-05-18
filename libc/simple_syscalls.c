@@ -26,7 +26,7 @@ __noreturn void exit(int status) {
 sys1(get_physical, uint64_t, long)
 sys0(getpid, pid_t)
 sys0(getppid, pid_t)
-sys4(wait4, pid_t, int *, int, void *, pid_t)
+//sys4(wait4, pid_t, int *, int, void *, pid_t)
 sys1(close, int, int)
 sys3(lseek, int, off_t, int, off_t)
 sys2(dup0, int, int, int)

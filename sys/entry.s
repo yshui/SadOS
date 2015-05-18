@@ -98,6 +98,8 @@ syscall_entry:
 	movq %rsp, 16(%r10) #set current->ti
 	movq $syscall_table, %r10
 	movq 0(%r10, %rax, 8), %r10
+	testq %r10, %r10
+	jz err_syscall_nr
 	call *%r10
 
 syscall_return:
@@ -113,6 +115,15 @@ syscall_return:
 .global panic
 
 panic_msg: .ascii "Return from syscall with interrupt disabled\n\0"
+err_nr_msg: .ascii "Non existent syscall %d\n\0"
+
+err_syscall_nr:
+	movq $err_nr_msg, %rdi
+	movq %rax, %rsi
+	call _printk
+	cli
+	hlt
+	jmp syscall_return
 
 ret_panic:
 	cli

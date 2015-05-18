@@ -39,9 +39,12 @@ argv_part_new(void) {
 
 struct cmd *parse(void) {
 	struct str *w = str_new();
+	errno = 0;
 	char p = getchar();
-	if (p < 0)
+	if (p < 0) {
+		printf("!X!X %d, %d\n", p, errno);
 		return NULL;
+	}
 
 	struct cmd *ret = malloc(sizeof(struct cmd));
 	ret->npipe = 0;
@@ -56,6 +59,7 @@ struct cmd *parse(void) {
 	//4: expecting '
 	int state = 0;
 	while(p) {
+		//printf("!!!%d, %c\n", p, p);
 		if (state == 3 || state == 4) {
 			char exp = state == 3 ? '"' : '\'';
 			if (p == exp)
@@ -66,8 +70,9 @@ struct cmd *parse(void) {
 					p = getchar();
 					escape = 1;
 				}
-				if (p < 0)
+				if (p < 0) {
 					break;
+				}
 				if (p != '\n' || escape != 1)
 					append(w, p);
 			}

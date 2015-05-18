@@ -69,6 +69,16 @@ static inline int builtin_pwd(struct pipe_part *p) {
 	return 0;
 }
 
+static inline int builtin_echo(struct pipe_part *p) {
+	struct argv_part *n = p->argv0;
+	while(n) {
+		printf("%s ", n->str);
+		n = n->next;
+	}
+	printf("\n");
+	return 0;
+}
+
 static inline int builtin_exit(struct pipe_part *p) {
 	exit(0);
 	return 0;
@@ -159,8 +169,8 @@ static inline int pipe_exec(struct cmd *c) {
 	free(p);
 
 	while(child--) {
-		int status;
-		int __attribute__((unused)) pid = waitpid(-1, &status, 0);
+		//int status;
+		//int __attribute__((unused)) pid = waitpid(-1, &status, 0);
 #ifdef __DEBUG
 		printf("PID=%d, status=%d\n", pid, status);
 #endif
@@ -178,6 +188,7 @@ struct builtin_cmd {
 	{ .name = "exit", .handler = builtin_exit },
 	{ .name = "quit", .handler = builtin_exit },
 	{ .name = "help", .handler = builtin_help },
+	{ .name = "echo", .handler = builtin_echo },
 	{ .name = NULL, .handler = NULL }
 };
 static int batch_mode = false;
@@ -199,6 +210,7 @@ int main(int argc, char **argv, char **envp) {
 		struct io_req req;
 		req.type = 3;
 		int cookie = request(0, sizeof(req), &req);
+		printf("FF %d\n", cookie);
 		close(cookie);
 	}
 	if (!batch_mode)

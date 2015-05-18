@@ -31,16 +31,13 @@ int int_port_connect(int port, struct request *req, size_t len, void *buf) {
 	return 0;
 }
 
-int int_port_get_response(struct request *req, struct response *res) {
-	req->data = (void *)((uint64_t)req->data&255);
-	return 0;
-}
-
 int int_port_available(struct request *req, int rw) {
 	if (rw == 2)
 		return 0;
 	uint64_t x = (uint64_t)req->data;
-	return (x&256) != 0;
+	int ret = (x&256) != 0;
+	req->data = (void *)(x&255);
+	return ret;
 }
 
 int int_port_dup(struct request *old, struct request *new) {
@@ -61,7 +58,6 @@ struct port_ops int_pops = {
 };
 
 struct req_ops int_rops = {
-	.get_response = int_port_get_response,
 	.dup = int_port_dup,
 	.available = int_port_available,
 	.drop = int_port_drop,

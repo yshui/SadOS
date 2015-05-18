@@ -19,6 +19,7 @@ static uint16_t offset;
 static int portio_fd;
 char *line_buffer;
 char *readable_lines[1024];
+int rl_off;
 int lbend, rlh, rlt;
 static void outb(uint16_t port, uint8_t byte) {
 	struct portio_req preq;
@@ -214,6 +215,7 @@ static inline void do_key(int symbol, int up) {
 		return;
 	line_buffer[lbend++] = c[0];
 	line_buffer[lbend] = 0;
+	vga_puts(c);
 }
 
 static void do_control_key(int symbol, int up) {
@@ -230,10 +232,13 @@ static void do_control_key(int symbol, int up) {
 		case 0x1c :
 			if (((rlt+1)&1023) == rlh)
 				return;
+			if (lbend < 1024)
+				line_buffer[lbend++] = '\n';
 			readable_lines[rlt] = line_buffer;
 			rlt = (rlt+1)&1023;
 			line_buffer = malloc(1024);
 			lbend = 0;
+			line_feed();
 			break;
 		case 0x0f :
 			//vga_puts_at("^I", 23, 78, KBD_DISPLAY_COLOR);
@@ -314,7 +319,27 @@ uint64_t handle_kbd(void) {
 	}
 	return 0;
 }
-int pending_read[1024];
+
+void send_result(int fd, int len) {
+	char *src = readable_lines[rlh]+rl_off;
+	int need_free = 0;
+	if (len >= strlen(src)) {
+		len = strlen(src);
+		rlh = (rlh+1)&1023;
+		rl_off = 0;
+		need_free = 1;
+	} else
+		rl_off += len;
+	struct io_res *rx = malloc(sizeof(struct io_res)+len+1);
+	rx->len = len;
+	rx->err = 0;
+	strncpy((char *)(rx+1), src, len);
+	if (need_free)
+		free(src);
+	respond(fd, sizeof(struct io_res)+len+1, rx);
+	free(rx);
+}
+int pending_read[1024], pending_read_len[1024];
 int ph, pt;
 int main() {
 	struct response res;
@@ -371,23 +396,14 @@ int main() {
 		fd_set_set(&fds, handle);
 		fd_set_set(&fds, kbd_int);
 		wait_on(&fds, NULL, 0);
-		struct response res;
 		if (fd_is_set(&fds, kbd_int)) {
 			handle_kbd();
-			get_response(kbd_int, &res);
 		}
 		while(rlt != rlh && pt != ph) {
 			int rh = pending_read[ph];
-			char *lb = readable_lines[rlh];
+			int rlen = pending_read_len[ph];
 			ph = (ph+1)&1023;
-			rlh = (rlh+1)&1023;
-			struct io_res *rx = malloc(sizeof(struct io_res)+strlen(lb)+1);
-			rx->len = strlen(lb);
-			rx->err = 0;
-			strcpy((char *)(rx+1), lb);
-			free(lb);
-			respond(rh, sizeof(struct io_res)+strlen(lb)+1, rx);
-			free(rx);
+			send_result(rh, rlen);
 		}
 		if (fd_is_set(&fds, handle)) {
 			int rhandle = pop_request(handle, &ureq);
@@ -400,17 +416,10 @@ int main() {
 					respond(rhandle, sizeof(rx), &rx);
 				} else if (rlt == rlh) {
 					pending_read[pt] = rhandle;
+					pending_read_len[pt] = x->len;
 					pt = (pt+1)&1023;
 				} else {
-					char *lb = readable_lines[rlh];
-					rlh = (rlh+1)&1023;
-					struct io_res *rxp = malloc(sizeof(struct io_res)+strlen(lb)+1);
-					rxp->len = strlen(lb);
-					rxp->err = 0;
-					strcpy((char *)(rxp+1), lb);
-					free(lb);
-					respond(rhandle, sizeof(struct io_res)+strlen(lb)+1, rxp);
-					free(rxp);
+					send_result(rhandle, x->len);
 				}
 			} else if (x->type == IO_WRITE){
 				vga_puts((void *)(x+1));
@@ -420,6 +429,8 @@ int main() {
 			} else if (x->type == 3) {
 				//Change control process
 				control_pid = ureq.pid;
+				vga_puts("Request to switch foreground task");
+				line_feed();
 			}
 			uint64_t base = ALIGN((uint64_t)x, 12);
 			munmap((void *)base, ureq.len);
