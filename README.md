@@ -37,7 +37,7 @@ These are some of the most important syscalls that are actually implemented in t
 * wait_on, wait_on_port: Wait on file descriptors or a port.
 * connect_port, open_port, request, respond, get_response: Used for IPC between processes. This API is TCP-like and stateful. The kernel will try to avoid memory copy as much as possible. I admit this API is not well designed, but in my defense, this is my first try.
 
-## What is not implemented
+## What are not implemented
 
 * pipe: We had some code for a pipe server in user space, but sadly we don't have time to finish it.
 * sleep: The wait_on syscall takes an argument for timeout, but we are short of time to actually implement that.
