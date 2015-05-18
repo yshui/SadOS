@@ -1,13 +1,11 @@
-# Team Member
+# Contributer
 
-* 109955038 Yuxuan Shui
-* 109797586 Haochen Chen
+* Yuxuan Shui
+* Haochen Chen
 
 # Overview
 
-This is an 80 points project.
-
-Our work might be a little bit unusual because our kernel follows a micro-kernel design. Unlike what was taught in the course, our kernel only does the basic process isolation, address space management and IPC, (almost) everything else is in user space. Including the console and the filesystem (so make sure they are there when you do the test).
+This kernel follows a micro-kernel design.The kernel only does the basic process isolation, address space management and IPC, (almost) everything else is in user space. Including the console and the filesystem (so make sure they are there when you do the test).
 
 Although due to time constraint, lack of experience in micro-kernel design and various other reasons, the result is extremly buggy and feature incomplete. At least we learned a lot, and had fun (at the expense of sleep) in the process.
 
